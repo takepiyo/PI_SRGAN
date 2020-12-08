@@ -62,10 +62,10 @@ if TEST_MODE:
 # start = time.clock()
 out_image = model(lr_image)
 # elapsed = (time.clock() - start)
-#print('cost' + str(elapsed) + 's')
+# print('cost' + str(elapsed) + 's')
 out_img = ToPILImage()(out_image[0].data.cpu())
 out_img.save('my_result/PRED_' + IMAGE_NAME)
-#out_img.save('out_srf_' + str(UPSCALE_FACTOR) + '_' + IMAGE_NAME)
+# out_img.save('out_srf_' + str(UPSCALE_FACTOR) + '_' + IMAGE_NAME)
 if TEST_MODE:
     print("loss", criterion(hr_image.view(-1).cuda(), out_image.view(-1)).item())
 else:

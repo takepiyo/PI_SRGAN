@@ -1,3 +1,6 @@
 /.python-version
 /data/large_cylinder/
 __pycache__/
+/.vscode/
+/data/cavity_flow_128_128/
+workspace.code-workspace
