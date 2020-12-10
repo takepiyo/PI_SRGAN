@@ -90,13 +90,23 @@ class DatasetFromPickle(Dataset):
                                           ToTensor()])
 
     def __getitem__(self, index):
-        hr_image = self.hr_transform(self.data[index, :, :])
+        normalized = self.normalize_space(self.data[index, :, :])
+        hr_image = self.hr_transform(normalized)
         lr_image = self.lr_transform(hr_image)
         restored_image = self.restore_transform(lr_image)
         return lr_image, restored_image, hr_image
 
     def __len__(self):
         return self.number
+
+    def normalize_space(self, data):
+        #  data(width, height, channel(u v p))
+        vars = np.var(data, axis=(0, 1))
+        vars = np.sqrt(np.sum(vars))
+        data[:, :, 0] = data[:, :, 0] / vars[0]
+        data[:, :, 1] = data[:, :, 1] / vars[0]
+        data[:, :, 2] = data[:, :, 2] / vars[0] ^ 2
+        return data
 
 
 class TrainDatasetFromFolder(Dataset):
