@@ -89,7 +89,7 @@ class DatasetFromPickle(Dataset):
 
         self.restore_transform = Compose([ToPILImage(),
                                           Resize(
-                                              self.crop_size, interpolation=Image.BICUBIC),
+                                              self.crop_size, interpolation=Image.NEAREST),
                                           ToTensor()])
 
         self.low_pass_filter_conv = self.get_low_pass_filter()
@@ -99,7 +99,7 @@ class DatasetFromPickle(Dataset):
         # hr_image = self.hr_transform(normalized)
         hr_image = ToTensor()(normalized)
         # lr_image = self.lr_transform(hr_image)
-        lr_image = self.low_pass_filter_conv(hr_image)
+        lr_image = self.low_pass_filter_conv(hr_image.unsqueeze(0)).squeeze(0)
         restored_image = self.restore_transform(lr_image)
         return lr_image, restored_image, hr_image
 

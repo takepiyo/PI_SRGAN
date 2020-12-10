@@ -80,8 +80,8 @@ images = torch.stack(
 images = utils.make_grid(images, nrow=3, padding=5)
 utils.save_image(images, os.path.join(
     image_out_dir, '{}_{}.png'.format(PICKLE_TYPE, INDEX)))
-# utils.save_image(lr.data.cpu().squeeze(0), os.path.join(
-#     image_out_dir, '{}_{}_lr.png'.format(PICKLE_TYPE, INDEX)))
+utils.save_image(lr.data.cpu().squeeze(0), os.path.join(
+    image_out_dir, '{}_{}_lr.png'.format(PICKLE_TYPE, INDEX)))
 
 
 
