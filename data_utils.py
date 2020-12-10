@@ -50,11 +50,11 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, split_rate=0.9):
     u_v_p = np.stack([
         data_dict['u'].transpose(2, 1, 0),
         data_dict['v'].transpose(2, 1, 0),
-        data_dict['p'].transpose(2, 1, 0)], axis=3)
+        data_dict['p'].transpose(2, 1, 0)], axis=3)[:2000, :, :, :]
 
     np.random.shuffle(u_v_p)
     u_v_p_train, u_v_p_valid = np.split(
-        u_v_p, [int(split_rate * data_dict['nend'])], 0)
+        u_v_p, [int(split_rate * u_v_p.shape[0])], 0)
 
     del data_dict
     gc.collect()
@@ -78,11 +78,14 @@ class DatasetFromPickle(Dataset):
                                      Resize(crop_size // upscale_factor,
                                             interpolation=Image.BICUBIC),
                                      ToTensor()])
-
+        self.restore_transform = Compose([ToPILImage(),
+                                             Resize(crop_size, interpolation=Image.BICUBIC),
+                                            ToTensor()])
     def __getitem__(self, index):
         hr_image = self.hr_transform(self.data[index, :, :])
         lr_image = self.lr_transform(hr_image)
-        return lr_image, hr_image
+        restored_image = self.restore_transform(lr_image)
+        return lr_image, restored_image, hr_image
 
     def __len__(self):
         return self.number
