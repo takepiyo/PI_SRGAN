@@ -184,10 +184,11 @@ if __name__ == '__main__':
                 index += 1
 
         # save model parameters
-        torch.save(netG.state_dict(), 'epochs/netG_epoch_%d_%d.pth' %
-                   (UPSCALE_FACTOR, epoch))
-        torch.save(netD.state_dict(), 'epochs/netD_epoch_%d_%d.pth' %
-                   (UPSCALE_FACTOR, epoch))
+        if epoch % SAVE_PER_EPOCH == 0:
+            torch.save(netG.state_dict(), os.path.join(OUT_DIR, 'netG_epoch_%d_%d.pth' %
+                                                       (UPSCALE_FACTOR, epoch)))
+            torch.save(netD.state_dict(), os.path.join(OUT_DIR, 'netD_epoch_%d_%d.pth' %
+                                                       (UPSCALE_FACTOR, epoch)))
         # save loss\scores\psnr\ssim
         results['d_loss'].append(
             running_results['d_loss'] / running_results['batch_sizes'])
