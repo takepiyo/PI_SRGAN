@@ -62,9 +62,9 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, split_rate=0
     train_dataset = DatasetFromPickle(u_v_p_train, upscale_factor)
     valid_dataset = DatasetFromPickle(u_v_p_valid, upscale_factor)
 
-    with open(out_dir + "/train.pickle", 'rb') as f:
+    with open(out_dir + "/train.pickle", 'wb') as f:
         pickle.dump(train_dataset, f)
-    with open(out_dir + "valid.pickle", 'rb') as f:
+    with open(out_dir + "/valid.pickle", 'wb') as f:
         pickle.dump(valid_dataset, f)
 
     return train_dataset, valid_dataset
@@ -75,7 +75,7 @@ class DatasetFromPickle(Dataset):
         super(DatasetFromPickle, self).__init__()
         data = data.astype(np.float32)
         self.data = data
-        self.number, crop_size, _, _ = data.shape
+        self.number, self.crop_size, _, _ = data.shape
         self.upscale_factor = upscale_factor
 
         self.hr_transform = Compose([ToTensor()
@@ -86,7 +86,8 @@ class DatasetFromPickle(Dataset):
                                      ToTensor()])
         self.restore_transform = Compose([ToPILImage(),
                                           Resize(
-                                              crop_size, interpolation=Image.BICUBIC),
+                                              crop_size, interpolation=Image.BICUBIC
+                                              ),
                                           ToTensor()])
 
     def __getitem__(self, index):
