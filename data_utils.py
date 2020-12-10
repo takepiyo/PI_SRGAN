@@ -97,7 +97,7 @@ class DatasetFromPickle(Dataset):
     def __getitem__(self, index):
         normalized = self.normalize_space(self.data[index, :, :])
         # hr_image = self.hr_transform(normalized)
-        hr_image = ToTensor(normalized)
+        hr_image = ToTensor()(normalized)
         # lr_image = self.lr_transform(hr_image)
         lr_image = self.low_pass_filter_conv(hr_image)
         restored_image = self.restore_transform(lr_image)
@@ -110,9 +110,9 @@ class DatasetFromPickle(Dataset):
         #  data(width, height, channel(u v p))
         vars = np.var(data, axis=(0, 1))
         vars = np.sqrt(np.sum(vars))
-        data[:, :, 0] = data[:, :, 0] / vars[0]
-        data[:, :, 1] = data[:, :, 1] / vars[0]
-        data[:, :, 2] = data[:, :, 2] / vars[0] ^ 2
+        data[:, :, 0] = data[:, :, 0] / vars
+        data[:, :, 1] = data[:, :, 1] / vars
+        data[:, :, 2] = data[:, :, 2] / (vars ** 2)
         return data
 
     # only 4 upscale factor is adopted
