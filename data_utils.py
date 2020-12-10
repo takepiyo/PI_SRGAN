@@ -5,6 +5,8 @@ from PIL import Image
 
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms import Compose, RandomCrop, ToTensor, ToPILImage, CenterCrop, Resize
+import torch.nn as nn
+import torch
 
 import pickle
 import numpy as np
@@ -78,22 +80,26 @@ class DatasetFromPickle(Dataset):
         self.number, self.crop_size, _, _ = data.shape
         self.upscale_factor = upscale_factor
 
-        self.hr_transform = Compose([ToTensor()
-                                     ])
-        self.lr_transform = Compose([ToPILImage(),
-                                     Resize(crop_size // upscale_factor,
-                                            interpolation=Image.BICUBIC),
-                                     ToTensor()])
+        # self.hr_transform = Compose([ToTensor()
+        #                              ])
+        # self.lr_transform = Compose([ToPILImage(),
+        #                              Resize(self.crop_size // upscale_factor,
+        #                                     interpolation=Image.BICUBIC),
+        #                              ToTensor()])
+
         self.restore_transform = Compose([ToPILImage(),
                                           Resize(
-                                              crop_size, interpolation=Image.BICUBIC
-                                              ),
+                                              self.crop_size, interpolation=Image.BICUBIC),
                                           ToTensor()])
+
+        self.low_pass_filter_conv = self.get_low_pass_filter()
 
     def __getitem__(self, index):
         normalized = self.normalize_space(self.data[index, :, :])
-        hr_image = self.hr_transform(normalized)
-        lr_image = self.lr_transform(hr_image)
+        # hr_image = self.hr_transform(normalized)
+        hr_image = ToTensor(normalized)
+        # lr_image = self.lr_transform(hr_image)
+        lr_image = self.low_pass_filter_conv(hr_image)
         restored_image = self.restore_transform(lr_image)
         return lr_image, restored_image, hr_image
 
@@ -108,6 +114,28 @@ class DatasetFromPickle(Dataset):
         data[:, :, 1] = data[:, :, 1] / vars[0]
         data[:, :, 2] = data[:, :, 2] / vars[0] ^ 2
         return data
+
+    # only 4 upscale factor is adopted
+    def get_low_pass_filter(self):
+        filter = nn.Conv2d(3, 3, 7, 4, 3, groups=3, bias=False)
+        w_0 = 0.22723004 * 2
+        w_1 = 0.20002636
+        w_2 = 0.13638498
+        w_3 = 0.04997364
+
+        one_channel_weight = torch.tensor([[0.0, 0.0, 0.0, w_3, 0.0, 0.0, 0.0],
+                                           [0.0, 0.0, 0.0, w_2, 0.0, 0.0, 0.0],
+                                           [0.0, 0.0, 0.0, w_1, 0.0, 0.0, 0.0],
+                                           [w_3, w_2, w_1, w_0, w_1, w_2, w_3],
+                                           [0.0, 0.0, 0.0, w_1, 0.0, 0.0, 0.0],
+                                           [0.0, 0.0, 0.0, w_2, 0.0, 0.0, 0.0],
+                                           [0.0, 0.0, 0.0, w_3, 0.0, 0.0, 0.0]], dtype=torch.float32)
+
+        filter.weight[0, 0, :, :] = one_channel_weight
+        filter.weight[1, 0, :, :] = one_channel_weight
+        filter.weight[2, 0, :, :] = one_channel_weight
+
+        return filter
 
 
 class TrainDatasetFromFolder(Dataset):
@@ -174,3 +202,36 @@ class TestDatasetFromFolder(Dataset):
 
     def __len__(self):
         return len(self.lr_filenames)
+
+
+if __name__ == '__main__':
+    filter = nn.Conv2d(3, 3, 7, 4, 3, groups=3, bias=False)
+    # nn.init.xavier_uniform_(filter.weight)
+
+    w_0 = 0.22723004 * 2
+    w_1 = 0.20002636
+    w_2 = 0.13638498
+    w_3 = 0.04997364
+
+    one_channel_weight = torch.tensor([[0.0, 0.0, 0.0, w_3, 0.0, 0.0, 0.0],
+                                       [0.0, 0.0, 0.0, w_2, 0.0, 0.0, 0.0],
+                                       [0.0, 0.0, 0.0, w_1, 0.0, 0.0, 0.0],
+                                       [w_3, w_2, w_1, w_0, w_1, w_2, w_3],
+                                       [0.0, 0.0, 0.0, w_1, 0.0, 0.0, 0.0],
+                                       [0.0, 0.0, 0.0, w_2, 0.0, 0.0, 0.0],
+                                       [0.0, 0.0, 0.0, w_3, 0.0, 0.0, 0.0]], dtype=torch.float32)
+
+    filter.weight[0, 0, :, :] = one_channel_weight
+    filter.weight[1, 0, :, :] = one_channel_weight
+    filter.weight[2, 0, :, :] = one_channel_weight
+
+    img = torch.ones([5, 3, 128, 128])
+    print(filter.weight)
+
+    output = filter(img)
+
+    a = 0
+
+    for one_img in output:
+        print('=====================')
+        print(one_img)
