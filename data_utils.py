@@ -44,7 +44,7 @@ def display_transform():
     ])
 
 
-def make_dataset_from_pickle(dataset_file, upscale_factor, split_rate=0.9):
+def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, split_rate=0.9):
     with open(dataset_file, 'rb') as f:
         data_dict = pickle.load(f)
     u_v_p = np.stack([
@@ -62,6 +62,11 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, split_rate=0.9):
     train_dataset = DatasetFromPickle(u_v_p_train, upscale_factor)
     valid_dataset = DatasetFromPickle(u_v_p_valid, upscale_factor)
 
+    with open(out_dir + "/train.pickle", 'rb') as f:
+        pickle.dump(train_dataset, f)
+    with open(out_dir + "valid.pickle", 'rb') as f:
+        pickle.dump(valid_dataset, f)
+
     return train_dataset, valid_dataset
 
 
@@ -71,6 +76,7 @@ class DatasetFromPickle(Dataset):
         data = data.astype(np.float32)
         self.data = data
         self.number, crop_size, _, _ = data.shape
+        self.upscale_factor = upscale_factor
 
         self.hr_transform = Compose([ToTensor()
                                      ])
@@ -79,8 +85,10 @@ class DatasetFromPickle(Dataset):
                                             interpolation=Image.BICUBIC),
                                      ToTensor()])
         self.restore_transform = Compose([ToPILImage(),
-                                             Resize(crop_size, interpolation=Image.BICUBIC),
-                                            ToTensor()])
+                                          Resize(
+                                              crop_size, interpolation=Image.BICUBIC),
+                                          ToTensor()])
+
     def __getitem__(self, index):
         hr_image = self.hr_transform(self.data[index, :, :])
         lr_image = self.lr_transform(hr_image)

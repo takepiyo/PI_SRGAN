@@ -24,6 +24,10 @@ parser.add_argument('--upscale_factor', default=4, type=int, choices=[2, 4, 8],
                     help='super resolution upscale factor')
 parser.add_argument('--num_epochs', default=100,
                     type=int, help='train epoch number')
+parser.add_argument('--output_dir',
+                    type=str, help='output directory in model directory')
+parser.add_argument('--save_per_epoch', default=10,
+                    type=int, help='save per epoch number')
 
 if __name__ == '__main__':
     opt = parser.parse_args()
@@ -31,6 +35,10 @@ if __name__ == '__main__':
     # CROP_SIZE = opt.crop_size
     UPSCALE_FACTOR = opt.upscale_factor
     NUM_EPOCHS = opt.num_epochs
+    OUT_DIR = "model/" + opt.output_dir
+    SAVE_PER_EPOCH = opt.save_per_epoch
+    if not os.path.exists(OUT_DIR):
+        os.makedirs(OUT_DIR)
 
     # train_set = TrainDatasetFromFolder(
     #     '/content/drive/My Drive/SRGAN/data/large_cylinder/HR', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
@@ -38,7 +46,7 @@ if __name__ == '__main__':
     #     '/content/drive/My Drive/SRGAN/data/large_cylinder/HR', upscale_factor=UPSCALE_FACTOR)
 
     train_set, val_set = make_dataset_from_pickle(
-        'data/1201_data.pickle', UPSCALE_FACTOR)
+        'data/1201_data.pickle', UPSCALE_FACTOR, OUT_DIR)
 
     train_loader = DataLoader(
         dataset=train_set, num_workers=4, batch_size=4, shuffle=True)

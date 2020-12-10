@@ -4,3 +4,4 @@ __pycache__/
 /.vscode/
 /data/cavity_flow_128_128/
 workspace.code-workspace
+model/*/
