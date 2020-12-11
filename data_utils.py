@@ -98,8 +98,10 @@ class DatasetFromPickle(Dataset):
         normalized = self.normalize_space(self.data[index, :, :])
         # hr_image = self.hr_transform(normalized)
         hr_image = ToTensor()(normalized)
-        # lr_image = self.lr_transform(hr_image)
-        lr_image = self.low_pass_filter_conv(hr_image.unsqueeze(0)).squeeze(0)
+        # lr_image_ = self.lr_transform(hr_image)
+        with torch.no_grad():
+            lr_image = self.low_pass_filter_conv(
+                hr_image.unsqueeze(0)).squeeze(0)
         restored_image = self.restore_transform(lr_image)
         return lr_image, restored_image, hr_image
 
