@@ -28,6 +28,10 @@ parser.add_argument('--output_dir',
                     type=str, help='output directory in model directory')
 parser.add_argument('--save_per_epoch', default=10,
                     type=int, help='save per epoch number')
+parser.add_argument('--batch_size', default=10,
+                    type=int, help='batch_size')
+parser.add_argument('--number_of_data', default=5000,
+                    type=int, help='the number of data')                    
 
 if __name__ == '__main__':
     opt = parser.parse_args()
@@ -37,6 +41,8 @@ if __name__ == '__main__':
     NUM_EPOCHS = opt.num_epochs
     OUT_DIR = "model/" + opt.output_dir
     SAVE_PER_EPOCH = opt.save_per_epoch
+    BATCH_SIZE = opt.batch_size
+    DATA_LENGTH = opt.number_of_data
     if not os.path.exists(OUT_DIR):
         os.makedirs(OUT_DIR)
 
@@ -46,10 +52,10 @@ if __name__ == '__main__':
     #     '/content/drive/My Drive/SRGAN/data/large_cylinder/HR', upscale_factor=UPSCALE_FACTOR)
 
     train_set, val_set = make_dataset_from_pickle(
-        'data/1201_data.pickle', UPSCALE_FACTOR, OUT_DIR)
+        'data/1201_data.pickle', UPSCALE_FACTOR, OUT_DIR, DATA_LENGTH)
 
     train_loader = DataLoader(
-        dataset=train_set, num_workers=4, batch_size=4, shuffle=True)
+        dataset=train_set, num_workers=4, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(dataset=val_set, num_workers=4,
                             batch_size=1, shuffle=False)
 
@@ -170,18 +176,18 @@ if __name__ == '__main__':
                     desc='[converting LR images to SR images] PSNR: %.4f dB SSIM: %.4f' % (
                         valing_results['psnr'], valing_results['ssim']))
 
-                val_images.extend(
-                    [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
-                     display_transform()(sr.data.cpu().squeeze(0))])
-            val_images = torch.stack(val_images)
-            val_images = torch.chunk(val_images, val_images.size(0) // 15)
-            val_save_bar = tqdm(val_images, desc='[saving training results]')
-            index = 1
-            for image in val_save_bar:
-                image = utils.make_grid(image, nrow=3, padding=5)
-                utils.save_image(
-                    image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
-                index += 1
+            #     val_images.extend(
+            #         [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
+            #          display_transform()(sr.data.cpu().squeeze(0))])
+            # val_images = torch.stack(val_images)
+            # val_images = torch.chunk(val_images, val_images.size(0) // 15)
+            # val_save_bar = tqdm(val_images, desc='[saving training results]')
+            # index = 1
+            # for image in val_save_bar:
+            #     image = utils.make_grid(image, nrow=3, padding=5)
+            #     utils.save_image(
+            #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
+            #     index += 1
 
         # save model parameters
         if epoch % SAVE_PER_EPOCH == 0:

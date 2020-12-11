@@ -46,13 +46,13 @@ def display_transform():
     ])
 
 
-def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, split_rate=0.9):
+def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length, split_rate=0.9):
     with open(dataset_file, 'rb') as f:
         data_dict = pickle.load(f)
     u_v_p = np.stack([
         data_dict['u'].transpose(2, 1, 0),
         data_dict['v'].transpose(2, 1, 0),
-        data_dict['p'].transpose(2, 1, 0)], axis=3)[:2000, :, :, :]
+        data_dict['p'].transpose(2, 1, 0)], axis=3)[:data_length, :, :, :]
 
     np.random.shuffle(u_v_p)
     u_v_p_train, u_v_p_valid = np.split(
@@ -95,7 +95,7 @@ class DatasetFromPickle(Dataset):
         self.low_pass_filter_conv = self.get_low_pass_filter()
 
     def __getitem__(self, index):
-        normalized = self.normalize_space(self.data[index, :, :])
+        normalized = self.normalize_space(self.data[index, :, :, :])
         # hr_image = self.hr_transform(normalized)
         hr_image = ToTensor()(normalized)
         # lr_image = self.lr_transform(hr_image)
