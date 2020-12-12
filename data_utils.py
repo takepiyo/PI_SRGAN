@@ -5,6 +5,7 @@ from PIL import Image
 
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms import Compose, RandomCrop, ToTensor, ToPILImage, CenterCrop, Resize
+# from torch.nn import functional as F
 import torch.nn as nn
 import torch
 
@@ -94,6 +95,8 @@ class DatasetFromPickle(Dataset):
 
         self.low_pass_filter_conv = self.get_low_pass_filter()
 
+        self.up_sample = nn.Upsample(size=self.crop_size, mode='nearest')
+
     def __getitem__(self, index):
         normalized = self.normalize_space(self.data[index, :, :, :])
         # hr_image = self.hr_transform(normalized)
@@ -102,8 +105,10 @@ class DatasetFromPickle(Dataset):
         with torch.no_grad():
             lr_image = self.low_pass_filter_conv(
                 hr_image.unsqueeze(0)).squeeze(0)
+            lr_image_expanded = self.up_sample(
+                lr_image.unsqueeze(0)).squeeze(0)
         restored_image = self.restore_transform(lr_image)
-        return lr_image, restored_image, hr_image
+        return lr_image, restored_image, hr_image, lr_image_expanded
 
     def __len__(self):
         return self.number

@@ -62,10 +62,10 @@ else:
 dataloader = DataLoader(dataset, batch_size=1, shuffle=False).__iter__()
 
 if INDEX != 0:
-  for i in range(INDEX - 1):
-    dataloader.__next__()
+    for i in range(INDEX - 1):
+        dataloader.__next__()
 
-lr, hr_restore, hr = dataloader.__next__()
+lr, hr_restore, hr, lr_expanded = dataloader.__next__()
 
 if torch.cuda.is_available():
     lr = lr.cuda()
@@ -75,13 +75,10 @@ sr = model(lr)
 print("loss", criterion(hr.view(-1), sr.view(-1)).item())
 
 images = torch.stack(
-    [hr_restore.squeeze(0), hr.data.cpu().squeeze(0), sr.data.cpu().squeeze(0)])
+    [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0), sr.data.cpu().squeeze(0), hr_restore.squeeze(0)])
 
-images = utils.make_grid(images, nrow=3, padding=5)
+images = utils.make_grid(images, nrow=4, padding=5)
 utils.save_image(images, os.path.join(
     image_out_dir, '{}_{}.png'.format(PICKLE_TYPE, INDEX)))
-utils.save_image(lr.data.cpu().squeeze(0), os.path.join(
-    image_out_dir, '{}_{}_lr.png'.format(PICKLE_TYPE, INDEX)))
-
-
-
+# utils.save_image(lr.data.cpu().squeeze(0), os.path.join(
+#     image_out_dir, '{}_{}_lr.png'.format(PICKLE_TYPE, INDEX)))

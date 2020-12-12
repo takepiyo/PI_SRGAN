@@ -31,7 +31,7 @@ parser.add_argument('--save_per_epoch', default=10,
 parser.add_argument('--batch_size', default=10,
                     type=int, help='batch_size')
 parser.add_argument('--number_of_data', default=5000,
-                    type=int, help='the number of data')                    
+                    type=int, help='the number of data')
 
 if __name__ == '__main__':
     opt = parser.parse_args()
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         netD.train()
         torch.autograd.set_detect_anomaly(True)
 
-        for data, _, target in train_bar:
+        for data, _, target, _ in train_bar:
             g_update_first = True
             batch_size = data.size(0)
             running_results['batch_sizes'] += batch_size
@@ -154,7 +154,7 @@ if __name__ == '__main__':
             valing_results = {'mse': 0, 'ssims': 0,
                               'psnr': 0, 'ssim': 0, 'batch_sizes': 0}
             val_images = []
-            for val_lr, val_hr_restore, val_hr in val_bar:
+            for val_lr, val_hr_restore, val_hr, _ in val_bar:
                 batch_size = val_lr.size(0)
                 valing_results['batch_sizes'] += batch_size
                 lr = val_lr
