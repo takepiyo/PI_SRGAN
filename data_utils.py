@@ -80,6 +80,8 @@ class DatasetFromPickle(Dataset):
         data = data.astype(np.float32)
         self.data = data
         self.number, self.crop_size, _, _ = data.shape
+        if self.crop_size == 130:
+          self.crop_size = 128
         self.upscale_factor = upscale_factor
         self.dx = torch.from_numpy(dx.astype(np.float32)).clone()
         self.dt = torch.from_numpy(dt.astype(np.float32)).clone()
@@ -101,7 +103,7 @@ class DatasetFromPickle(Dataset):
         self.up_sample = nn.Upsample(size=self.crop_size, mode='nearest')
 
     def __getitem__(self, index):
-        normalized = self.normalize_space(self.data[index, :, :, :])
+        normalized = self.normalize_space(self.data[index, 1:129, 1:129, :])
         # hr_image = self.hr_transform(normalized)
         hr_image = ToTensor()(normalized)
         # lr_image_ = self.lr_transform(hr_image)

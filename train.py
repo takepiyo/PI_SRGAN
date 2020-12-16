@@ -52,7 +52,7 @@ if __name__ == '__main__':
     #     '/content/drive/My Drive/SRGAN/data/large_cylinder/HR', upscale_factor=UPSCALE_FACTOR)
 
     train_set, val_set = make_dataset_from_pickle(
-        'data/1201_data.pickle', UPSCALE_FACTOR, OUT_DIR, DATA_LENGTH)
+        'data/1216_smalldata.pickle', UPSCALE_FACTOR, OUT_DIR, DATA_LENGTH)
 
     train_loader = DataLoader(
         dataset=train_set, num_workers=4, batch_size=BATCH_SIZE, shuffle=True)
