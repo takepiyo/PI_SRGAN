@@ -58,12 +58,13 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length,
     np.random.shuffle(u_v_p)
     u_v_p_train, u_v_p_valid = np.split(
         u_v_p, [int(split_rate * u_v_p.shape[0])], 0)
-
+    dx = data_dict['dx']
+    dt = data_dict['dt']
     del data_dict
     gc.collect()
 
-    train_dataset = DatasetFromPickle(u_v_p_train, upscale_factor)
-    valid_dataset = DatasetFromPickle(u_v_p_valid, upscale_factor)
+    train_dataset = DatasetFromPickle(u_v_p_train, upscale_factor, dx, dt)
+    valid_dataset = DatasetFromPickle(u_v_p_valid, upscale_factor, dx, dt)
 
     with open(out_dir + "/train.pickle", 'wb') as f:
         pickle.dump(train_dataset, f)
@@ -74,12 +75,14 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length,
 
 
 class DatasetFromPickle(Dataset):
-    def __init__(self, data, upscale_factor):
+    def __init__(self, data, upscale_factor, dx, dt):
         super(DatasetFromPickle, self).__init__()
         data = data.astype(np.float32)
         self.data = data
         self.number, self.crop_size, _, _ = data.shape
         self.upscale_factor = upscale_factor
+        self.dx = torch.from_numpy(dx.astype(np.float32)).clone()
+        self.dt = torch.from_numpy(dt.astype(np.float32)).clone()
 
         # self.hr_transform = Compose([ToTensor()
         #                              ])
