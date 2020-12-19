@@ -60,11 +60,15 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length,
         u_v_p, [int(split_rate * u_v_p.shape[0])], 0)
     dx = data_dict['dx']
     dt = data_dict['dt']
+    u_0 = data_dict['u0']
+    visc = data_dict['visc']
     del data_dict
     gc.collect()
 
-    train_dataset = DatasetFromPickle(u_v_p_train, upscale_factor, dx, dt)
-    valid_dataset = DatasetFromPickle(u_v_p_valid, upscale_factor, dx, dt)
+    train_dataset = DatasetFromPickle(
+        u_v_p_train, upscale_factor, dx, dt, u_0, visc)
+    valid_dataset = DatasetFromPickle(
+        u_v_p_valid, upscale_factor, dx, dt, u_0, visc)
 
     with open(out_dir + "/train.pickle", 'wb') as f:
         pickle.dump(train_dataset, f)
@@ -75,14 +79,14 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length,
 
 
 class DatasetFromPickle(Dataset):
-    def __init__(self, data, upscale_factor, dx, dt):
+    def __init__(self, data, upscale_factor, dx, dt, u_0, visc):
         super(DatasetFromPickle, self).__init__()
         data = data.astype(np.float32)
         self.data = data
         self.number, self.crop_size, _, _ = data.shape
-        if self.crop_size == 130:
-          self.crop_size = 128
         self.upscale_factor = upscale_factor
+        self.u_0 = u_0
+        self.visc = visc
         self.dx = torch.from_numpy(dx.astype(np.float32)).clone()
         self.dt = torch.from_numpy(dt.astype(np.float32)).clone()
 
@@ -103,7 +107,7 @@ class DatasetFromPickle(Dataset):
         self.up_sample = nn.Upsample(size=self.crop_size, mode='nearest')
 
     def __getitem__(self, index):
-        normalized = self.normalize_space(self.data[index, 1:129, 1:129, :])
+        normalized = self.normalize_space(self.data[index, :, :, :])
         # hr_image = self.hr_transform(normalized)
         hr_image = ToTensor()(normalized)
         # lr_image_ = self.lr_transform(hr_image)

@@ -4,132 +4,160 @@ import torch.nn as nn
 
 class PhysicsInformedLoss(nn.Module):
 
-    def __init__(self, labmda_con, dx, dt):
+    def __init__(self, labmda_con, dx, dt, u_0, crop_size, visc):
         super(PhysicsInformedLoss, self).__init__()
         self.labmda_con = labmda_con
         self.dx = dx
         self.dt = dt
-        self.first_order_diff_x = self.get_diff_filter(0, 1)
-        self.first_order_diff_y = self.get_diff_filter(1, 1)
-        self.second_order_diff_x = self.get_diff_filter(0, 2)
-        self.second_order_diff_y = self.get_diff_filter(1, 2)
+        self.u_0 = u_0
+        self.crop_size = crop_size
+        self.visc = visc
+        self.continuity_ddx = nn.Conv2d(1, 1, 3, 1, 0, bias=False)
+        self.continuity_ddy = nn.Conv2d(1, 1, 3, 1, 0, bias=False)
+        self.average_x = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
+        self.average_y = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
+        self.poission_up_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
+        self.poission_up_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
+        self.poission_down_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
+        self.poission_down_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
+        self.setting_weights()
+
+    def setting_weights(self):
+        self.continuity_ddx.weight.data = torch.tensor([[[[0, 0, 0],
+                                                          [-1., 1., 0],
+                                                          [0, 0, 0]]]])
+
+        self.continuity_ddy.weight.data = torch.tensor([[[[0, -1., 0],
+                                                          [0, 1, 0],
+                                                          [0, 0, 0]]]])
+
+        self.average_x.weight.data = torch.tensor([[[[0.5, 0.5],
+                                                     [0., 0.]]]])
+
+        self.average_y.weight.data = torch.tensor([[[[0.5, 0.],
+                                                     [0.5, 0.]]]])
+
+        self.poission_up_ddx.weight.data = torch.tensor([[[[-1., 1.],
+                                                           [0, 0]]]])
+
+        self.poission_up_ddy.weight.data = torch.tensor([[[[-1., 0],
+                                                           [1., 0]]]])
+
+        self.poission_down_ddx.weight.data = torch.tensor([[[[0., 0],
+                                                             [-1., 1.]]]])
+
+        self.poission_down_ddy.weight.data = torch.tensor([[[[0, -1.],
+                                                             [0, 1.]]]])
 
     def forward(self, gen_output, HR_image):
-        vel_grad = self.get_velocity_grad(gen_output)
-        vel_grad_HR = self.get_velocity_grad(HR_image)
-        strain_rate_2_HR = torch.mean(torch.mean(self.get_strain_rate_mags(
-            vel_grad_HR), dim=2, keepdim=True), dim=3, keepdim=True)
+        # vel_grad = self.get_velocity_grad(gen_output)
+        # vel_grad_HR = self.get_velocity_grad(HR_image)
+        # strain_rate_2_HR = torch.mean(torch.mean(self.get_strain_rate_mags(
+        # vel_grad_HR), dim=2, keepdim=True), dim=3, keepdim=True)
 
-        # continuity_loss = self.get_continuity_loss(vel_grad)
-        # pressure_loss = self.get_pressure_loss(gen_output, vel_grad)
-        continuity_res = self.get_continuity_res(vel_grad)
-        pressure_res = self.get_pressure_res(gen_output, vel_grad)
-        # continuity_loss = torch.square(continuity_loss) / strain_rate_2_HR
-        # pressure_loss = torch.square(pressure_loss) / strain_rate_2_HR ** 2
-        continuity_loss = torch.sum(
-            (continuity_res ** 2) / strain_rate_2_HR, dim=(2, 3))
-        pressure_loss = torch.sum(
-            (pressure_res ** 2) / (strain_rate_2_HR ** 2), dim=(2, 3))
+        # continuity loss
+        continuity_res = self.get_continuity_res(gen_output)
+        continuity_loss = torch.mean(
+            torch.sqrt(continuity_res ** 2), dim=(2, 3))
 
-        return self.labmda_con * continuity_loss + (1 - self.labmda_con) * pressure_loss
+        # poisson loss
+        dudt = self.get_poission_dudt(gen_output)
+        dvdt = self.get_poission_dvdt(gen_output)
+        poisson_loss = torch.mean(torch.sqrt(dudt**2), dim=(2, 3)) + \
+            torch.mean(torch.sqrt(dvdt**2), dim=(2, 3))
 
-    def get_velocity_grad(self, input):
-        dudx = self.ddx(input, 0)
-        dvdx = self.ddx(input, 1)
-        dudy = self.ddy(input, 0)
-        dvdy = self.ddy(input, 1)
-        return dudx, dvdx, dudy, dvdy
+        return self.labmda_con * continuity_loss + (1 - self.labmda_con) * poisson_loss
 
-    def get_strain_rate_mags(self, vel_grad):
-        dudx, dvdx, dudy, dvdy = vel_grad
+    # def get_velocity_grad(self, input):
+    #     dudx = self.ddx(input, 0)
+    #     dvdx = self.ddx(input, 1)
+    #     dudy = self.ddy(input, 0)
+    #     dvdy = self.ddy(input, 1)
+    #     return dudx, dvdx, dudy, dvdy
 
-        strain_rate_mag2 = dudx**2 + dvdy**2 + 2 * \
-            ((0.5 * (dudy + dvdx))**2)
-
-        return strain_rate_mag2
-
-    # def get_continuity_loss(self, vel_grad):
+    # def get_strain_rate_mags(self, vel_grad):
     #     dudx, dvdx, dudy, dvdy = vel_grad
-    #     return dudx + dvdy
 
-    # def get_pressure_loss(self, input, vel_grad):
-    #     dudx, dvdx, dudy, dvdy = vel_grad
-    #     d2pdx2 = self.d2dx2(input, 2)
-    #     d2pdy2 = self.d2dy2(input, 2)
+    #     strain_rate_mag2 = dudx**2 + dvdy**2 + 2 * \
+    #         ((0.5 * (dudy + dvdx))**2)
 
-    #     return d2pdx2 + d2pdy2 + dudx * dudx + dvdy * dvdy + 2 * (dudy * dvdx)
+    #     return strain_rate_mag2
 
-    def ddx(self, input, channel):
-        return self.first_order_diff_x(input[:, channel, :, :].unsqueeze(1)) / self.dx
-
-    def ddy(self, input, channel):
-        return self.first_order_diff_y(input[:, channel, :, :].unsqueeze(1)) / self.dx
-
-    def d2dx2(self, input, channel):
-        return self.second_order_diff_x(input[:, channel, :, :].unsqueeze(1)) / self.dx ** 2
-
-    def d2dy2(self, input, channel):
-        return self.second_order_diff_y(input[:, channel, :, :].unsqueeze(1)) / self.dx ** 2
-
-    def get_continuity_res(self, vel_grad):
-        dudx, dvdx, dudy, dvdy = vel_grad
+    def get_continuity_res(self, gen_output):
+        dudx = self.continuity_ddx(gen_output[:, 0, :, :]) / self.dx
+        dvdy = self.continuity_ddy(gen_output[:, 1, :, :]) / self.dx
         return dudx + dvdy
 
-    def get_pressure_res(self, gen_output, vel_grad):
-        dudx, dvdx, dudy, dvdy = vel_grad
-        d2pdx2 = self.d2dx2(gen_output, 2)
-        d2pdy2 = self.d2dy2(gen_output, 2)
+    def get_poission_dudt(self, gen_output):
+        u = gen_output[:, 0, :, :]
+        v = gen_output[:, 1, :, :]
+        p = gen_output[:, 2, :, :]
 
-        res = d2pdx2 * d2pdx2 + d2pdy2 * d2pdy2
-        res += dudx * dudx + dvdy * dvdy + 2 * dudx * dvdy
-        res -= (dudx + dvdy) / self.dt
+        ue = self.average_x(u)
+        vn = self.average_x(v)
 
-        return res
+        flux_e = ue * \
+            self.average_x(u) - (self.visc / self.dx) * self.poission_up_ddx(u)
+        flux_n = vn * \
+            self.average_y(u) - (self.visc / self.dx) * self.poission_up_ddy(u)
 
-    def get_diff_filter(self, direction, order):
-        '''
-        direction = 0 : x
-        direction = 1 : y
-        '''
-        filter = nn.Conv2d(1, 1, 3, 1, 1, bias=False)
-        if order == 1:
-            w_0 = -1.0
-            w_1 = 1.0
-            if direction == 0:
-                weight = torch.tensor([[[[0.0, 0.0, 0.0],
-                                         [0.0, w_0, w_1],
-                                         [0.0, 0.0, 0.0]]]], dtype=torch.float32)
-                filter.weight.data = weight
-            elif direction == 1:
-                weight = torch.tensor([[[[0.0, w_1, 0.0],
-                                         [0.0, w_0, 0.0],
-                                         [0.0, 0.0, 0.0]]]], dtype=torch.float32)
-                filter.weight.data = weight
-            else:
-                print("direction is accepted 1 or 2")
-                exit()
+        flux_e = flux_e[:, :, :, :-1]
+        flux_n = flux_n[:, :, :, :-1]
+        p = p[:, :, :-1, 1:-1]
 
-        elif order == 2:
-            w_0 = -2.0
-            w_1 = 1.0
-            if direction == 0:
-                weight = torch.tensor([[[[0.0, 0.0, 0.0],
-                                         [w_1, w_0, w_1],
-                                         [0.0, 0.0, 0.0]]]], dtype=torch.float32)
-                filter.weight.data = weight
-            elif direction == 1:
-                weight = torch.tensor([[[[0.0, w_1, 0.0],
-                                         [0.0, w_0, 0.0],
-                                         [0.0, w_1, 0.0]]]], dtype=torch.float32)
-                filter.weight.data = weight
-            else:
-                print("direction is accepted 1 or 2")
-                exit()
-        else:
-            print("order is accepted 1 or 2")
-            exit()
+        flux_e_diff = -self.poission_down_ddx(flux_e) / self.dx
+        flux_n_diff = -self.poission_down_ddy(flux_n) / self.dx
+        p_diff = -self.poission_down_ddx(p) / self.dx
 
-        return filter
+        dudt = flux_e_diff + flux_n_diff + p_diff
+
+        return dudt
+
+    def get_poission_dvdt(self, gen_output):
+        u = gen_output[:, 0, :, :]
+        v = gen_output[:, 1, :, :]
+        p = gen_output[:, 2, :, :]
+
+        ue = self.average_y(u)
+        vn = self.average_y(v)
+
+        flux_e = ue * \
+            self.average_x(v) - (self.visc / self.dx) * self.poission_up_ddx(v)
+        flux_n = vn * \
+            self.average_y(v) - (self.visc / self.dx) * self.poission_up_ddy(v)
+
+        flux_e = flux_e[:, :, :-1, :]
+        flux_n = flux_n[:, :, :-1, :]
+        p = p[:, :, 1:-1, :-1]
+
+        flux_e_diff = -self.poission_down_ddx(flux_e) / self.dx
+        flux_n_diff = -self.poission_down_ddy(flux_n) / self.dx
+        p_diff = -self.poission_down_ddy(p) / self.dx
+
+        dvdt = flux_e_diff + flux_n_diff + p_diff
+
+        return dvdt
+
+
+if __name__ == '__main__':
+    from data_utils import make_dataset_from_pickle
+    from torch.utils.data import DataLoader
+
+    train_dataset, valid_dataset = make_dataset_from_pickle(
+        'data/1214_data.pickle', 4, 'PI_loss_test_dir', 1000)
+    dataloader = DataLoader(train_dataset, batch_size=1,
+                            shuffle=False).__iter__()
+    INDEX = 5
+    if INDEX != 0:
+        for i in range(INDEX - 1):
+            dataloader.__next__()
+
+    PI_loss = PhysicsInformedLoss(1.0, train_dataset.dx, train_dataset.dt)
+
+    lr, hr_restore, hr, lr_expanded = dataloader.__next__()
+
+    loss = PI_loss(hr, hr)
+    print(loss)
 
     # def get_diff_filter(self, direction, order):
     #     '''
@@ -173,24 +201,3 @@ class PhysicsInformedLoss(nn.Module):
     #         exit()
 
     #     return filter
-
-
-if __name__ == '__main__':
-    from data_utils import make_dataset_from_pickle
-    from torch.utils.data import DataLoader
-
-    train_dataset, valid_dataset = make_dataset_from_pickle(
-        'data/1214_data.pickle', 4, 'PI_loss_test_dir', 1000)
-    dataloader = DataLoader(train_dataset, batch_size=1,
-                            shuffle=False).__iter__()
-    INDEX = 5
-    if INDEX != 0:
-        for i in range(INDEX - 1):
-            dataloader.__next__()
-
-    PI_loss = PhysicsInformedLoss(1.0, train_dataset.dx, train_dataset.dt)
-
-    lr, hr_restore, hr, lr_expanded = dataloader.__next__()
-
-    loss = PI_loss(hr, hr)
-    print(loss)
