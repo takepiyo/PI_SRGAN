@@ -4,7 +4,7 @@ import torch.nn as nn
 
 class PhysicsInformedLoss(nn.Module):
 
-    def __init__(self, labmda_con, dx, dt, u_0, crop_size, visc):
+    def __init__(self, labmda_con, dx, dt, u_0, visc, crop_size):
         super(PhysicsInformedLoss, self).__init__()
         self.labmda_con = labmda_con
         self.dx = dx
@@ -84,14 +84,16 @@ class PhysicsInformedLoss(nn.Module):
     #     return strain_rate_mag2
 
     def get_continuity_res(self, gen_output):
-        dudx = self.continuity_ddx(gen_output[:, 0, :, :]) / self.dx
-        dvdy = self.continuity_ddy(gen_output[:, 1, :, :]) / self.dx
+        dudx = self.continuity_ddx(
+            gen_output[:, 0, :, :].unsqueeze(1)) / self.dx
+        dvdy = self.continuity_ddy(
+            gen_output[:, 1, :, :].unsqueeze(1)) / self.dx
         return dudx + dvdy
 
     def get_poission_dudt(self, gen_output):
-        u = gen_output[:, 0, :, :]
-        v = gen_output[:, 1, :, :]
-        p = gen_output[:, 2, :, :]
+        u = gen_output[:, 0, :, :].unsqueeze(1)
+        v = gen_output[:, 1, :, :].unsqueeze(1)
+        p = gen_output[:, 2, :, :].unsqueeze(1)
 
         ue = self.average_x(u)
         vn = self.average_x(v)
@@ -114,9 +116,9 @@ class PhysicsInformedLoss(nn.Module):
         return dudt
 
     def get_poission_dvdt(self, gen_output):
-        u = gen_output[:, 0, :, :]
-        v = gen_output[:, 1, :, :]
-        p = gen_output[:, 2, :, :]
+        u = gen_output[:, 0, :, :].unsqueeze(1)
+        v = gen_output[:, 1, :, :].unsqueeze(1)
+        p = gen_output[:, 2, :, :].unsqueeze(1)
 
         ue = self.average_y(u)
         vn = self.average_y(v)
@@ -144,7 +146,7 @@ if __name__ == '__main__':
     from torch.utils.data import DataLoader
 
     train_dataset, valid_dataset = make_dataset_from_pickle(
-        'data/1214_data.pickle', 4, 'PI_loss_test_dir', 1000)
+        '/home/takeshi/GAN/PI_SRGAN/130_130_stationary.pickle', 4, 'PI_loss_test_dir', 1000)
     dataloader = DataLoader(train_dataset, batch_size=1,
                             shuffle=False).__iter__()
     INDEX = 5
@@ -152,52 +154,9 @@ if __name__ == '__main__':
         for i in range(INDEX - 1):
             dataloader.__next__()
 
-    PI_loss = PhysicsInformedLoss(1.0, train_dataset.dx, train_dataset.dt)
+    PI_loss = PhysicsInformedLoss(1.0, *train_dataset.get_params())
 
     lr, hr_restore, hr, lr_expanded = dataloader.__next__()
 
     loss = PI_loss(hr, hr)
     print(loss)
-
-    # def get_diff_filter(self, direction, order):
-    #     '''
-    #     direction = 0 : x
-    #     direction = 1 : y
-    #     '''
-    #     filter = nn.Conv2d(1, 1, 7, 1, 3, bias=False)
-    #     if order == 1:
-    #         w_0 = 0.
-    #         w_1 = -3. / 4.
-    #         w_2 = 3. / 20.
-    #         w_3 = -1. / 60.
-    #     elif order == 2:
-    #         w_0 = -49. / 18.
-    #         w_1 = 3. / 2.
-    #         w_2 = -3. / 20.
-    #         w_3 = 1. / 90.
-    #     else:
-    #         print("order is accepted 1 or 2")
-    #         exit()
-    #     if direction == 0:
-    #         weight = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    #                                [w_3, w_2, w_1, w_0, w_1, w_2, w_3],
-    #                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32)
-    #         filter.weight = weight
-    #     elif direction == 1:
-    #         weight = torch.tensor([[0.0, 0.0, 0.0, w_3, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, w_2, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, w_1, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, w_0, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, w_1, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, w_2, 0.0, 0.0, 0.0],
-    #                                [0.0, 0.0, 0.0, w_3, 0.0, 0.0, 0.0]], dtype=torch.float32)
-    #         filter.weight = weight
-    #     else:
-    #         print("direction is accepted 1 or 2")
-    #         exit()
-
-    #     return filter

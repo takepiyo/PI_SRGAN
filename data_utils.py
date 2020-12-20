@@ -50,10 +50,13 @@ def display_transform():
 def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length, split_rate=0.9):
     with open(dataset_file, 'rb') as f:
         data_dict = pickle.load(f)
+
+    data_length = min([data_length, data_dict['u'].shape[0]])
+
     u_v_p = np.stack([
-        data_dict['u'].transpose(2, 1, 0),
-        data_dict['v'].transpose(2, 1, 0),
-        data_dict['p'].transpose(2, 1, 0)], axis=3)[:data_length, :, :, :]
+        data_dict['u'],
+        data_dict['v'],
+        data_dict['p']], axis=3)[:data_length, :, :, :]
 
     np.random.shuffle(u_v_p)
     u_v_p_train, u_v_p_valid = np.split(
@@ -102,12 +105,13 @@ class DatasetFromPickle(Dataset):
                                               self.crop_size, interpolation=Image.NEAREST),
                                           ToTensor()])
 
-        self.low_pass_filter_conv = self.get_low_pass_filter()
+        self.low_pass_filter_conv = self._get_low_pass_filter()
 
         self.up_sample = nn.Upsample(size=self.crop_size, mode='nearest')
 
     def __getitem__(self, index):
-        normalized = self.normalize_space(self.data[index, :, :, :])
+        # normalized = self._normalize_space(self.data[index, :, :, :])
+        normalized = self.data[index, :, :, :]
         # hr_image = self.hr_transform(normalized)
         hr_image = ToTensor()(normalized)
         # lr_image_ = self.lr_transform(hr_image)
@@ -122,7 +126,7 @@ class DatasetFromPickle(Dataset):
     def __len__(self):
         return self.number
 
-    def normalize_space(self, data):
+    def _normalize_space(self, data):
         #  data(width, height, channel(u v p))
         vars = np.var(data, axis=(0, 1))
         vars = np.sqrt(np.sum(vars))
@@ -132,7 +136,7 @@ class DatasetFromPickle(Dataset):
         return data
 
     # only 4 upscale factor is adopted
-    def get_low_pass_filter(self):
+    def _get_low_pass_filter(self):
         filter = nn.Conv2d(3, 3, 7, 4, 3, groups=3, bias=False)
         w_0 = 0.22723004 * 2
         w_1 = 0.20002636
@@ -152,6 +156,9 @@ class DatasetFromPickle(Dataset):
         filter.weight[2, 0, :, :] = one_channel_weight
 
         return filter
+
+    def get_params(self):
+        return(self.dx, self.dt, self.u_0, self.visc, self.crop_size)
 
 
 class TrainDatasetFromFolder(Dataset):
