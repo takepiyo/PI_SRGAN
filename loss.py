@@ -2,28 +2,39 @@ import torch
 from torch import nn
 from torchvision.models.vgg import vgg16
 
+from physics_loss import PhysicsInformedLoss
+
 
 class GeneratorLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, loss_weight, pi_params, lambda_con):
         super(GeneratorLoss, self).__init__()
         vgg = vgg16(pretrained=True)
         loss_network = nn.Sequential(*list(vgg.features)[:31]).eval()
         for param in loss_network.parameters():
             param.requires_grad = False
+        self.loss_weight = loss_weight
         self.loss_network = loss_network
         self.mse_loss = nn.MSELoss()
         self.tv_loss = TVLoss()
+        self.pi_loss = PhysicsInformedLoss(lambda_con, *pi_params)
 
     def forward(self, out_labels, out_images, target_images):
         # Adversarial Loss
         adversarial_loss = torch.mean(1 - out_labels)
         # Perception Loss
-        perception_loss = self.mse_loss(self.loss_network(out_images), self.loss_network(target_images))
+        perception_loss = self.mse_loss(self.loss_network(
+            out_images), self.loss_network(target_images))
         # Image Loss
         image_loss = self.mse_loss(out_images, target_images)
         # TV Loss
         tv_loss = self.tv_loss(out_images)
-        return image_loss + 0.001 * adversarial_loss + 0.006 * perception_loss + 2e-8 * tv_loss
+        # PI loss added 20201220
+        pi_loss = self.pi_loss(out_images)
+        return self.loss_weight[0] * image_loss + \
+            self.loss_weight[1] * adversarial_loss + \
+            self.loss_weight[2] * perception_loss + \
+            self.loss_weight[3] * tv_loss + \
+            self.loss_weight[4] * pi_loss
 
 
 class TVLoss(nn.Module):

@@ -66,7 +66,10 @@ if __name__ == '__main__':
     print('# discriminator parameters:', sum(param.numel()
                                              for param in netD.parameters()))
 
-    generator_criterion = GeneratorLoss()
+    loss_weight = (1.0, 0.001, 0.006, 2e-8, 0.001)
+    lambda_con = 0.001
+    generator_criterion = GeneratorLoss(
+        loss_weight, train_set.get_params(), lambda_con)
 
     if torch.cuda.is_available():
         netG.cuda()

@@ -49,7 +49,7 @@ class PhysicsInformedLoss(nn.Module):
         self.poission_down_ddy.weight.data = torch.tensor([[[[0, -1.],
                                                              [0, 1.]]]])
 
-    def forward(self, gen_output, HR_image):
+    def forward(self, gen_output):
         # vel_grad = self.get_velocity_grad(gen_output)
         # vel_grad_HR = self.get_velocity_grad(HR_image)
         # strain_rate_2_HR = torch.mean(torch.mean(self.get_strain_rate_mags(
