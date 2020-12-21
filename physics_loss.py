@@ -18,8 +18,10 @@ class PhysicsInformedLoss(nn.Module):
         self.average_y = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
         self.poission_up_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
         self.poission_up_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
-        self.poission_down_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
-        self.poission_down_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.poission_down_ddx = nn.Conv2d(
+            1, 1, 2, 1, 0, bias=False).to(device)
+        self.poission_down_ddy = nn.Conv2d(
+            1, 1, 2, 1, 0, bias=False).to(device)
         self.device = device
         self.setting_weights()
 
@@ -59,13 +61,13 @@ class PhysicsInformedLoss(nn.Module):
         # continuity loss
         continuity_res = self.get_continuity_res(gen_output)
         continuity_loss = torch.mean(
-            torch.sqrt(continuity_res ** 2), dim=(2, 3))
+            torch.abs(continuity_res), dim=(2, 3))
 
         # poisson loss
         dudt = self.get_poission_dudt(gen_output)
         dvdt = self.get_poission_dvdt(gen_output)
-        poisson_loss = torch.mean(torch.sqrt(dudt**2), dim=(2, 3)) + \
-            torch.mean(torch.sqrt(dvdt**2), dim=(2, 3))
+        poisson_loss = torch.mean(torch.abs(dudt), dim=(2, 3)) + \
+            torch.mean(torch.abs(dvdt), dim=(2, 3))
         # pi_loss
         pi_loss = self.labmda_con * continuity_loss + \
             (1 - self.labmda_con) * poisson_loss
