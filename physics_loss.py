@@ -65,8 +65,11 @@ class PhysicsInformedLoss(nn.Module):
         dvdt = self.get_poission_dvdt(gen_output)
         poisson_loss = torch.mean(torch.sqrt(dudt**2), dim=(2, 3)) + \
             torch.mean(torch.sqrt(dvdt**2), dim=(2, 3))
-
-        return self.labmda_con * continuity_loss + (1 - self.labmda_con) * poisson_loss
+        # pi_loss
+        pi_loss = self.labmda_con * continuity_loss + \
+            (1 - self.labmda_con) * poisson_loss
+        pi_loss = torch.mean(pi_loss.view(-1))
+        return pi_loss
 
     # def get_velocity_grad(self, input):
     #     dudx = self.ddx(input, 0)
@@ -146,7 +149,7 @@ if __name__ == '__main__':
     from torch.utils.data import DataLoader
 
     train_dataset, valid_dataset = make_dataset_from_pickle(
-        '/home/takeshi/GAN/PI_SRGAN/130_130_stationary.pickle', 4, 'PI_loss_test_dir', 1000)
+        '/home/takeshi/GAN/PI_SRGAN/data/1221_16000step/stationary.pickle', 4, 'PI_loss_test_dir', 10000)
     dataloader = DataLoader(train_dataset, batch_size=1,
                             shuffle=False).__iter__()
     INDEX = 5
@@ -158,5 +161,5 @@ if __name__ == '__main__':
 
     lr, hr_restore, hr, lr_expanded = dataloader.__next__()
 
-    loss = PI_loss(hr, hr)
+    loss = PI_loss(hr)
     print(loss)
