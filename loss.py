@@ -6,7 +6,7 @@ from physics_loss import PhysicsInformedLoss
 
 
 class GeneratorLoss(nn.Module):
-    def __init__(self, loss_weight, pi_params, lambda_con):
+    def __init__(self, loss_weight, pi_params, lambda_con, device):
         super(GeneratorLoss, self).__init__()
         vgg = vgg16(pretrained=True)
         loss_network = nn.Sequential(*list(vgg.features)[:31]).eval()
@@ -16,7 +16,7 @@ class GeneratorLoss(nn.Module):
         self.loss_network = loss_network
         self.mse_loss = nn.MSELoss()
         self.tv_loss = TVLoss()
-        self.pi_loss = PhysicsInformedLoss(lambda_con, *pi_params)
+        self.pi_loss = PhysicsInformedLoss(lambda_con, *pi_params, device)
 
     def forward(self, out_labels, out_images, target_images):
         # Adversarial Loss

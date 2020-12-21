@@ -4,50 +4,51 @@ import torch.nn as nn
 
 class PhysicsInformedLoss(nn.Module):
 
-    def __init__(self, labmda_con, dx, dt, u_0, visc, crop_size):
+    def __init__(self, labmda_con, dx, dt, u_0, visc, crop_size, device):
         super(PhysicsInformedLoss, self).__init__()
         self.labmda_con = labmda_con
-        self.dx = dx
-        self.dt = dt
-        self.u_0 = u_0
+        self.dx = dx.to(device)
+        self.dt = dt.to(device)
+        self.u_0 = u_0.to(device)
         self.crop_size = crop_size
-        self.visc = visc
-        self.continuity_ddx = nn.Conv2d(1, 1, 3, 1, 0, bias=False)
-        self.continuity_ddy = nn.Conv2d(1, 1, 3, 1, 0, bias=False)
-        self.average_x = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
-        self.average_y = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
-        self.poission_up_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
-        self.poission_up_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
-        self.poission_down_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
-        self.poission_down_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False)
+        self.visc = visc.to(device)
+        self.continuity_ddx = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
+        self.continuity_ddy = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
+        self.average_x = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.average_y = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.poission_up_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.poission_up_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.poission_down_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.poission_down_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.device = device
         self.setting_weights()
 
     def setting_weights(self):
         self.continuity_ddx.weight.data = torch.tensor([[[[0, 0, 0],
                                                           [-1., 1., 0],
-                                                          [0, 0, 0]]]])
+                                                          [0, 0, 0]]]], device=self.device)
 
         self.continuity_ddy.weight.data = torch.tensor([[[[0, -1., 0],
                                                           [0, 1, 0],
-                                                          [0, 0, 0]]]])
+                                                          [0, 0, 0]]]], device=self.device)
 
         self.average_x.weight.data = torch.tensor([[[[0.5, 0.5],
-                                                     [0., 0.]]]])
+                                                     [0., 0.]]]], device=self.device)
 
         self.average_y.weight.data = torch.tensor([[[[0.5, 0.],
-                                                     [0.5, 0.]]]])
+                                                     [0.5, 0.]]]], device=self.device)
 
         self.poission_up_ddx.weight.data = torch.tensor([[[[-1., 1.],
-                                                           [0, 0]]]])
+                                                           [0, 0]]]], device=self.device)
 
         self.poission_up_ddy.weight.data = torch.tensor([[[[-1., 0],
-                                                           [1., 0]]]])
+                                                           [1., 0]]]], device=self.device)
 
         self.poission_down_ddx.weight.data = torch.tensor([[[[0., 0],
-                                                             [-1., 1.]]]])
+                                                             [-1., 1.]]]], device=self.device)
 
         self.poission_down_ddy.weight.data = torch.tensor([[[[0, -1.],
-                                                             [0, 1.]]]])
+                                                             [0, 1.]]]], device=self.device)
 
     def forward(self, gen_output):
         # vel_grad = self.get_velocity_grad(gen_output)

@@ -88,8 +88,8 @@ class DatasetFromPickle(Dataset):
         self.data = data
         self.number, self.crop_size, _, _ = data.shape
         self.upscale_factor = upscale_factor
-        self.u_0 = u_0
-        self.visc = visc
+        self.u_0 = torch.from_numpy(u_0.astype(np.float32)).clone()
+        self.visc = torch.from_numpy(visc.astype(np.float32)).clone()
         self.dx = torch.from_numpy(dx.astype(np.float32)).clone()
         self.dt = torch.from_numpy(dt.astype(np.float32)).clone()
 

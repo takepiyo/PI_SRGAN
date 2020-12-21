@@ -52,7 +52,7 @@ if __name__ == '__main__':
     #     '/content/drive/My Drive/SRGAN/data/large_cylinder/HR', upscale_factor=UPSCALE_FACTOR)
 
     train_set, val_set = make_dataset_from_pickle(
-        '/home/takeshi/GAN/PI_SRGAN/data/1221_16000step/stationary.pickle', UPSCALE_FACTOR, OUT_DIR, DATA_LENGTH)
+        '/content/drive/MyDrive/PI_SRGAN/data/stationary.pickle', UPSCALE_FACTOR, OUT_DIR, DATA_LENGTH)
 
     train_loader = DataLoader(
         dataset=train_set, num_workers=4, batch_size=BATCH_SIZE, shuffle=True)
@@ -66,10 +66,12 @@ if __name__ == '__main__':
     print('# discriminator parameters:', sum(param.numel()
                                              for param in netD.parameters()))
 
+
     loss_weight = (1.0, 0.001, 0.006, 2e-8, 0.001)
     lambda_con = 0.001
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     generator_criterion = GeneratorLoss(
-        loss_weight, train_set.get_params(), lambda_con)
+        loss_weight, train_set.get_params(), lambda_con, device)
 
     if torch.cuda.is_available():
         netG.cuda()
