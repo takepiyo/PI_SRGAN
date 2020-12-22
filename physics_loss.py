@@ -4,13 +4,15 @@ import torch.nn as nn
 
 class PhysicsInformedLoss(nn.Module):
 
-    def __init__(self, labmda_con, dx, dt, u_0, visc, crop_size, device):
+    def __init__(self, labmda_con, lambda_b_c, dx, dt, u_0, visc, crop_size, device='cpu'):
         super(PhysicsInformedLoss, self).__init__()
         self.labmda_con = labmda_con
+        self.lambda_b_c = lambda_b_c
         self.dx = dx.to(device)
         self.dt = dt.to(device)
         self.u_0 = u_0.to(device)
         self.crop_size = crop_size
+        self.N = crop_size - 2
         self.visc = visc.to(device)
         self.continuity_ddx = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
         self.continuity_ddy = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
@@ -68,9 +70,14 @@ class PhysicsInformedLoss(nn.Module):
         dvdt = self.get_poission_dvdt(gen_output)
         poisson_loss = torch.mean(torch.abs(dudt), dim=(2, 3)) + \
             torch.mean(torch.abs(dvdt), dim=(2, 3))
+
+        # boundary loss
+        b_c_loss = self.get_b_c_loss(gen_output)
+
         # pi_loss
         pi_loss = self.labmda_con * continuity_loss + \
-            (1 - self.labmda_con) * poisson_loss
+            self.lambda_b_c * b_c_loss + \
+            (1 - self.labmda_con - self.lambda_b_c) * poisson_loss
         pi_loss = torch.mean(pi_loss.view(-1))
         return pi_loss
 
@@ -146,6 +153,31 @@ class PhysicsInformedLoss(nn.Module):
 
         return dvdt
 
+    def get_b_c_loss(self, gen_output):
+        # y = 0
+        y_0_loss = torch.sum(gen_output[:, 0, 0, 1:self.N] + gen_output[:, 0, 1, 1:self.N], dim=1) + \
+            torch.sum(gen_output[:, 1, 0, 1:self.N + 1] +
+                      gen_output[:, 2, 0, 1:self.N + 1], dim=1)
+        # y = L
+        y_L_loss = torch.sum(2 * self.u_0 - (gen_output[:, 0, self.N, 1:self.N] + gen_output[:, 0, self.N + 1, 1:self.N]), dim=1) + \
+            torch.sum(gen_output[:, 1, self.N + 1, 1:self.N + 1] +
+                      gen_output[:, 2, self.N + 1, 1:self.N + 1], dim=1)
+        # x = 0
+        x_0_loss = torch.sum(gen_output[:, 1, 1:self.N, 0] + gen_output[:, 1, 1:self.N, 1], dim=1) + \
+            torch.sum(gen_output[:, 0, 1:self.N + 1, 0] +
+                      gen_output[:, 2, 1:self.N + 1, 0], dim=1)
+        # x = L
+        x_L_loss = torch.sum(gen_output[:, 1, 1:self.N, self.N + 1] + gen_output[:, 1, 1:self.N, self.N], dim=1) + \
+            torch.sum(gen_output[:, 0, 1:self.N + 1, self.N + 1] +
+                      gen_output[:, 2, 1:self.N + 1, self.N + 1], dim=1)
+
+        b_c_loss = torch.sum(
+            (torch.abs(y_0_loss) +
+             torch.abs(y_L_loss) +
+             torch.abs(x_0_loss) +
+             torch.abs(x_L_loss)).view(-1))
+        return b_c_loss
+
 
 if __name__ == '__main__':
     from data_utils import make_dataset_from_pickle
@@ -160,7 +192,9 @@ if __name__ == '__main__':
         for i in range(INDEX - 1):
             dataloader.__next__()
 
-    PI_loss = PhysicsInformedLoss(1.0, *train_dataset.get_params())
+    lambda_params = (0.5, 0.01)
+
+    PI_loss = PhysicsInformedLoss(*lambda_params, *train_dataset.get_params())
 
     lr, hr_restore, hr, lr_expanded = dataloader.__next__()
 

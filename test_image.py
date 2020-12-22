@@ -10,6 +10,7 @@ import torchvision.utils as utils
 from data_utils import TrainDatasetFromFolder, make_dataset_from_pickle
 from torch.utils.data import DataLoader
 
+from loss import GeneratorLoss
 import os
 import matplotlib.pyplot as plt
 # %matplotlib inline
@@ -72,15 +73,28 @@ if torch.cuda.is_available():
     hr = hr.cuda()
 sr = model(lr)
 
-print("loss", criterion(hr.view(-1), sr.view(-1)).item())
+loss_weight = (1.0, 0.001, 0.006, 2e-8, 0.001)
+lambda_params = (0.5, 0.01)
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+generator_criterion = GeneratorLoss(
+    loss_weight, dataset.get_params(), lambda_params, device)
+
+generator_criterion(1.0, sr, hr)
+
+print("loss", criterion(hr[0, 0, :, :].view(-1),
+                        sr[0, 0, :, :].view(-1)).item())
+print("loss", criterion(hr[0, 1, :, :].view(-1),
+                        sr[0, 1, :, :].view(-1)).item())
+print("loss", criterion(hr[0, 2, :, :].view(-1),
+                        sr[0, 2, :, :].view(-1)).item())
 
 images = torch.stack(
-    [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0), sr.data.cpu().squeeze(0), hr_restore.squeeze(0)])
+    [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0), sr.data.cpu().squeeze(0)])
 
-images = utils.make_grid(images, nrow=4, padding=5)
+images = utils.make_grid(images, nrow=3, padding=5)
 # print(images.cpu().numpy().shape)
-# plt.imshow(images.cpu().numpy().transpose(2, 1, 0))
-# plt.show()
+plt.imshow(images.cpu().numpy().transpose(1, 2, 0))
+plt.show()
 utils.save_image(images, os.path.join(
     image_out_dir, '{}_{}.png'.format(PICKLE_TYPE, INDEX)))
 # utils.save_image(lr.data.cpu().squeeze(0), os.path.join(
