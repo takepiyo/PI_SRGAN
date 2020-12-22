@@ -5,3 +5,4 @@ __pycache__/
 /data/cavity_flow_128_128/
 workspace.code-workspace
 model/*/
+make_pickle.py
