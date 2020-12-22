@@ -78,6 +78,9 @@ images = torch.stack(
     [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0), sr.data.cpu().squeeze(0), hr_restore.squeeze(0)])
 
 images = utils.make_grid(images, nrow=4, padding=5)
+# print(images.cpu().numpy().shape)
+# plt.imshow(images.cpu().numpy().transpose(2, 1, 0))
+# plt.show()
 utils.save_image(images, os.path.join(
     image_out_dir, '{}_{}.png'.format(PICKLE_TYPE, INDEX)))
 # utils.save_image(lr.data.cpu().squeeze(0), os.path.join(
