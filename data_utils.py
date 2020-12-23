@@ -47,7 +47,7 @@ def display_transform():
     ])
 
 
-def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length, split_rate=0.9):
+def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length, split_rate=0.5):
     with open(dataset_file, 'rb') as f:
         data_dict = pickle.load(f)
 

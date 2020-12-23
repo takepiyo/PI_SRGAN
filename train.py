@@ -28,7 +28,7 @@ parser.add_argument('--output_dir',
                     type=str, help='output directory in model directory')
 parser.add_argument('--save_per_epoch', default=10,
                     type=int, help='save per epoch number')
-parser.add_argument('--batch_size', default=10,
+parser.add_argument('--batch_size', default=1,
                     type=int, help='batch_size')
 parser.add_argument('--number_of_data', default=5000,
                     type=int, help='the number of data')
@@ -116,6 +116,9 @@ if __name__ == '__main__':
             z = Variable(data)
             if torch.cuda.is_available():
                 z = z.cuda()
+
+            # print(z)
+
             fake_img = netG(z)
 
             netD.zero_grad()
@@ -160,7 +163,8 @@ if __name__ == '__main__':
             valing_results = {'mse': 0, 'ssims': 0,
                               'psnr': 0, 'ssim': 0, 'batch_sizes': 0}
             val_images = []
-            for val_lr, val_hr_restore, val_hr, _ in val_bar:
+            # for val_lr, val_hr_restore, val_hr, lr_expanded in val_bar:
+            for val_lr, val_hr_restore, val_hr, lr_expanded in val_bar:
                 batch_size = val_lr.size(0)
                 valing_results['batch_sizes'] += batch_size
                 lr = val_lr
@@ -182,18 +186,23 @@ if __name__ == '__main__':
                     desc='[converting LR images to SR images] PSNR: %.4f dB SSIM: %.4f' % (
                         valing_results['psnr'], valing_results['ssim']))
 
-            #     val_images.extend(
-            #         [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
-            #          display_transform()(sr.data.cpu().squeeze(0))])
-            # val_images = torch.stack(val_images)
-            # val_images = torch.chunk(val_images, val_images.size(0) // 15)
+                val_images.extend(
+                    [(lr_expanded.squeeze(0)), (hr.data.cpu().squeeze(0)),
+                     (sr.data.cpu().squeeze(0))])
+            val_images = torch.stack(val_images)
+            # ======
+            image = utils.make_grid(val_images, nrow=3, padding=5)
+            utils.save_image(image, out_path +
+                             'epoch_%d_index_%d.png' % (epoch, 0), padding=5)
+            # =======
+            #val_images = torch.chunk(val_images, val_images.size(0) // 15)
             # val_save_bar = tqdm(val_images, desc='[saving training results]')
             # index = 1
             # for image in val_save_bar:
-            #     image = utils.make_grid(image, nrow=3, padding=5)
-            #     utils.save_image(
-            #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
-            #     index += 1
+            # image = utils.make_grid(image, nrow=3, padding=5)
+            # utils.save_image(
+            #     image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
+            # index += 1
 
         # save model parameters
         if epoch % SAVE_PER_EPOCH == 0:

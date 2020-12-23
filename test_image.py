@@ -76,17 +76,31 @@ sr = model(lr)
 loss_weight = (1.0, 0.001, 0.006, 2e-8, 0.001)
 lambda_params = (0.5, 0.01)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-generator_criterion = GeneratorLoss(
-    loss_weight, dataset.get_params(), lambda_params, device)
+# generator_criterion = GeneratorLoss(
+#    loss_weight, dataset.get_params(), lambda_params, device)
 
-generator_criterion(1.0, sr, hr)
+#generator_criterion(1.0, sr, hr)
 
-print("loss", criterion(hr[0, 0, :, :].view(-1),
-                        sr[0, 0, :, :].view(-1)).item())
-print("loss", criterion(hr[0, 1, :, :].view(-1),
-                        sr[0, 1, :, :].view(-1)).item())
-print("loss", criterion(hr[0, 2, :, :].view(-1),
-                        sr[0, 2, :, :].view(-1)).item())
+print("loss", criterion(hr[0, 0, :, :],
+                        sr[0, 0, :, :]).item())
+print("loss", criterion(hr[0, 1, :, :],
+                        sr[0, 1, :, :]).item())
+print("loss", criterion(hr[0, 2, :, :],
+                        sr[0, 2, :, :]).item())
+print("loss", criterion(hr[0, :, :, :],
+                        sr[0, :, :, :]).item())
+
+print("u_loss", ((sr[:, 0, :, :] - hr[:, 0, :, :]) ** 2).data.mean())
+print("v_loss", ((sr[:, 1, :, :] - hr[:, 1, :, :]) ** 2).data.mean())
+print("p_loss", ((sr[:, 2, :, :] - hr[:, 2, :, :]) ** 2).data.mean())
+
+print("u_loss", ((((sr[:, 0, :, :] - hr[:, 0, :, :])
+                   ** 2)) / (torch.max(hr[:, 0, :, :]) ** 2)).data.mean())
+print("v_loss", ((((sr[:, 1, :, :] - hr[:, 1, :, :])
+                   ** 2)) / (torch.max(hr[:, 1, :, :]) ** 2)).data.mean())
+print("p_loss", ((((sr[:, 2, :, :] - hr[:, 2, :, :])
+                   ** 2)) / (torch.max(hr[:, 2, :, :]) ** 2)).data.mean())
+
 
 images = torch.stack(
     [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0), sr.data.cpu().squeeze(0)])
