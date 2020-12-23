@@ -68,10 +68,11 @@ if __name__ == '__main__':
                                              for param in netD.parameters()))
 
     loss_weight = (1.0, 0.001, 0.006, 2e-8, 0.0)
-    lambda_params = (0.5, 0.001)
+    image_loss_weight = (0.333333, 0.333333, 0.333333)
+    lambda_params = (0.5, 0.01)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     generator_criterion = GeneratorLoss(
-        loss_weight, train_set.get_params(), lambda_params, device)
+        loss_weight, image_loss_weight, train_set.get_params(), lambda_params, device)
 
     if torch.cuda.is_available():
         netG.cuda()

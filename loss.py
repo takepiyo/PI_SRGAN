@@ -6,13 +6,14 @@ from physics_loss import PhysicsInformedLoss
 
 
 class GeneratorLoss(nn.Module):
-    def __init__(self, loss_weight, pi_params, lambda_params, device):
+    def __init__(self, loss_weight, image_loss_weight, pi_params, lambda_params, device):
         super(GeneratorLoss, self).__init__()
         vgg = vgg16(pretrained=True)
         loss_network = nn.Sequential(*list(vgg.features)[:31]).eval()
         for param in loss_network.parameters():
             param.requires_grad = False
         self.loss_weight = loss_weight
+        self.image_loss_weight = image_loss_weight
         self.loss_network = loss_network
         self.mse_loss = nn.MSELoss()
         self.tv_loss = TVLoss()
@@ -25,7 +26,12 @@ class GeneratorLoss(nn.Module):
         perception_loss = self.mse_loss(self.loss_network(
             out_images), self.loss_network(target_images))
         # Image Loss
-        image_loss = self.mse_loss(out_images, target_images)
+        image_loss = self.image_loss_weight[0] * self.mse_loss(out_images[:, 0, :, :], target_images[:, 0, :, :]) + \
+            self.image_loss_weight[1] * self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :]) + \
+            self.image_loss_weight[2] * self.mse_loss(
+                out_images[:, 2, :, :], target_images[:, 2, :, :])
+
+        image_loss = image_loss / 3
         # TV Loss
         tv_loss = self.tv_loss(out_images)
         # PI loss added 20201220
