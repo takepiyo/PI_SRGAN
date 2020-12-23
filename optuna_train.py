@@ -17,44 +17,17 @@ from model import Generator, Discriminator
 
 import matplotlib.pyplot as plt
 
-parser = argparse.ArgumentParser(description='Train Super Resolution Models')
-# parser.add_argument('--crop_size', default=128, type=int,
-#                     help='training images crop size')
-parser.add_argument('--upscale_factor', default=4, type=int, choices=[2, 4, 8],
-                    help='super resolution upscale factor')
-parser.add_argument('--num_epochs', default=100,
-                    type=int, help='train epoch number')
-parser.add_argument('--output_dir',
-                    type=str, help='output directory in model directory')
-parser.add_argument('--save_per_epoch', default=10,
-                    type=int, help='save per epoch number')
-parser.add_argument('--batch_size', default=10,
-                    type=int, help='batch_size')
-parser.add_argument('--number_of_data', default=5000,
-                    type=int, help='the number of data')
-parser.add_argument('--pickle',
-                    type=str, help='pickle file path')
-if __name__ == '__main__':
-    opt = parser.parse_args()
+def main(weight_tuple, pi_weight_tuple, dataset_tuple):
 
     # CROP_SIZE = opt.crop_size
-    UPSCALE_FACTOR = opt.upscale_factor
-    NUM_EPOCHS = opt.num_epochs
-    OUT_DIR = "model/" + opt.output_dir
-    SAVE_PER_EPOCH = opt.save_per_epoch
-    BATCH_SIZE = opt.batch_size
-    DATA_LENGTH = opt.number_of_data
-    if not os.path.exists(OUT_DIR):
-        os.makedirs(OUT_DIR)
+    UPSCALE_FACTOR = 4
+    NUM_EPOCHS = 100
+    #OUT_DIR = "model/" + opt.output_dir
+    #SAVE_PER_EPOCH = opt.save_per_epoch
+    BATCH_SIZE = 100
 
-    # train_set = TrainDatasetFromFolder(
-    #     '/content/drive/My Drive/SRGAN/data/large_cylinder/HR', crop_size=CROP_SIZE, upscale_factor=UPSCALE_FACTOR)
-    # val_set = ValDatasetFromFolder(
-    #     '/content/drive/My Drive/SRGAN/data/large_cylinder/HR', upscale_factor=UPSCALE_FACTOR)
-
-    train_set, val_set = make_dataset_from_pickle(
-        opt.pickle, UPSCALE_FACTOR, OUT_DIR, DATA_LENGTH)
-
+    train_set, val_set = dataset_tuple
+    
     train_loader = DataLoader(
         dataset=train_set, num_workers=4, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(dataset=val_set, num_workers=4,
@@ -67,11 +40,11 @@ if __name__ == '__main__':
     print('# discriminator parameters:', sum(param.numel()
                                              for param in netD.parameters()))
 
-    loss_weight = (1.0, 0.001, 0.006, 2e-8, 0.0)
-    lambda_params = (0.5, 0.001)
+    # loss_weight = (1.0, 0.001, 0.006, 2e-8, 0.5)
+    # lambda_params = (0.5, 0.001)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     generator_criterion = GeneratorLoss(
-        loss_weight, train_set.get_params(), lambda_params, device)
+        weight_tuple, train_set.get_params(), pi_weight_tuple, device)
 
     if torch.cuda.is_available():
         netG.cuda()
@@ -83,7 +56,7 @@ if __name__ == '__main__':
 
     results = {'d_loss': [], 'g_loss': [], 'd_score': [],
                'g_score': [], 'psnr': [], 'ssim': []}
-
+    eval_mse_error_list = []
     for epoch in range(1, NUM_EPOCHS + 1):
         train_bar = tqdm(train_loader)
         running_results = {'batch_sizes': 0, 'd_loss': 0,
@@ -159,7 +132,7 @@ if __name__ == '__main__':
             valing_results = {'mse': 0, 'ssims': 0,
                               'psnr': 0, 'ssim': 0, 'batch_sizes': 0}
             val_images = []
-            for val_lr, val_hr_restore, val_hr, lr_extended in val_bar:
+            for val_lr, val_hr_restore, val_hr, _ in val_bar:
                 batch_size = val_lr.size(0)
                 valing_results['batch_sizes'] += batch_size
                 lr = val_lr
@@ -180,43 +153,19 @@ if __name__ == '__main__':
                 val_bar.set_description(
                     desc='[converting LR images to SR images] PSNR: %.4f dB SSIM: %.4f' % (
                         valing_results['psnr'], valing_results['ssim']))
+            eval_mse_error_list.append(valing_results['mse'])
 
-                val_images.extend(
-                    [lr_extended.squeeze(0), hr.data.cpu().squeeze(0),
-                     sr.data.cpu().squeeze(0)])
-            val_images = torch.stack(val_images)
-            val_images = torch.chunk(val_images, val_images.size(0) // 15)
-            val_save_bar = tqdm(val_images, desc='[saving training results]')
-            index = 1
-            for image in val_save_bar:
-                image = utils.make_grid(image, nrow=3, padding=5)
-                utils.save_image(
-                    image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
-                index += 1
+    return min(eval_mse_error_list)
+            #     val_images.extend(
+            #         [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
+            #          display_transform()(sr.data.cpu().squeeze(0))])
+            # val_images = torch.stack(val_images)
+            # val_images = torch.chunk(val_images, val_images.size(0) // 15)
+            # val_save_bar = tqdm(val_images, desc='[saving training results]')
+            # index = 1
+            # for image in val_save_bar:
+            #     image = utils.make_grid(image, nrow=3, padding=5)
+            #     utils.save_image(
+            #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
+            #     index += 1
 
-        # save model parameters
-        if epoch % SAVE_PER_EPOCH == 0:
-            torch.save(netG.state_dict(), os.path.join(OUT_DIR, 'netG_epoch_%d_%d.pth' %
-                                                       (UPSCALE_FACTOR, epoch)))
-            torch.save(netD.state_dict(), os.path.join(OUT_DIR, 'netD_epoch_%d_%d.pth' %
-                                                       (UPSCALE_FACTOR, epoch)))
-        # save loss\scores\psnr\ssim
-        results['d_loss'].append(
-            running_results['d_loss'] / running_results['batch_sizes'])
-        results['g_loss'].append(
-            running_results['g_loss'] / running_results['batch_sizes'])
-        results['d_score'].append(
-            running_results['d_score'] / running_results['batch_sizes'])
-        results['g_score'].append(
-            running_results['g_score'] / running_results['batch_sizes'])
-        results['psnr'].append(valing_results['psnr'])
-        results['ssim'].append(valing_results['ssim'])
-
-        if epoch % 10 == 0 and epoch != 0:
-            out_path = 'statistics/'
-            data_frame = pd.DataFrame(
-                data={'Loss_D': results['d_loss'], 'Loss_G': results['g_loss'], 'Score_D': results['d_score'],
-                      'Score_G': results['g_score'], 'PSNR': results['psnr'], 'SSIM': results['ssim']},
-                index=range(1, epoch + 1))
-            data_frame.to_csv(out_path + 'srf_' + str(UPSCALE_FACTOR) +
-                              '_train_results.csv', index_label='Epoch')

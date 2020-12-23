@@ -138,10 +138,10 @@ class DatasetFromPickle(Dataset):
     # only 4 upscale factor is adopted
     def _get_low_pass_filter(self):
         filter = nn.Conv2d(3, 3, 7, 4, 3, groups=3, bias=False)
-        w_0 = 0.22723004 * 2
-        w_1 = 0.20002636
-        w_2 = 0.13638498
-        w_3 = 0.04997364
+        w_0 = 0.22723004
+        w_1 = 0.20002636 / 2
+        w_2 = 0.13638498 / 2
+        w_3 = 0.04997364 / 2
 
         one_channel_weight = torch.tensor([[0.0, 0.0, 0.0, w_3, 0.0, 0.0, 0.0],
                                            [0.0, 0.0, 0.0, w_2, 0.0, 0.0, 0.0],
