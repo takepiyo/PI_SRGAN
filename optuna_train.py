@@ -17,14 +17,14 @@ from model import Generator, Discriminator
 
 import matplotlib.pyplot as plt
 
-def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple):
+def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple, trial_count):
 
     # CROP_SIZE = opt.crop_size
     UPSCALE_FACTOR = 4
-    NUM_EPOCHS = 80
+    NUM_EPOCHS = 50
     #OUT_DIR = "model/" + opt.output_dir
     #SAVE_PER_EPOCH = opt.save_per_epoch
-    BATCH_SIZE = 100
+    BATCH_SIZE = 80
 
     train_set, val_set = dataset_tuple
     
@@ -61,7 +61,8 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple):
         train_bar = tqdm(train_loader)
         running_results = {'batch_sizes': 0, 'd_loss': 0,
                            'g_loss': 0, 'd_score': 0, 'g_score': 0}
-
+        detailed_loss = {'adversarial': 0, 'perception': 0, 
+                         'image_loss': 0, 'tv_loss': 0, 'pi_loss': 0}
         netG.train()
         netD.train()
         torch.autograd.set_detect_anomaly(True)
@@ -102,7 +103,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple):
             ###########################
             netG.zero_grad()
             g_loss = generator_criterion(fake_out, fake_img, real_img)
-            g_loss.backward()
+            sum(g_loss).backward()
 
             fake_img = netG(z)
             fake_out = netD(fake_img).mean()
@@ -110,20 +111,28 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple):
             optimizerG.step()
 
             # loss for current batch before optimization
-            running_results['g_loss'] += g_loss.item() * batch_size
+            running_results['g_loss'] += sum(g_loss).item() * batch_size
             running_results['d_loss'] += d_loss.item() * batch_size
             running_results['d_score'] += real_out.item() * batch_size
             running_results['g_score'] += fake_out.item() * batch_size
+            detailed_loss['adversarial'] += g_loss[1].item() * batch_size
+            detailed_loss['perception'] += g_loss[2].item() * batch_size
+            detailed_loss['image_loss'] += g_loss[0].item() * batch_size
+            detailed_loss['tv_loss'] += g_loss[3].item() * batch_size
+            detailed_loss['pi_loss'] += g_loss[4].item() * batch_size
 
-            train_bar.set_description(desc='[%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f' % (
+            train_bar.set_description(desc='[%d/%d] Loss_D: %.4f Loss_G: %.4f image_loss: %.4f pi_loss: %.4f percep: %.4f tv: %.4f adver: %.4f' % (
                 epoch, NUM_EPOCHS, running_results['d_loss'] /
                 running_results['batch_sizes'],
                 running_results['g_loss'] / running_results['batch_sizes'],
-                running_results['d_score'] / running_results['batch_sizes'],
-                running_results['g_score'] / running_results['batch_sizes']))
+                detailed_loss['image_loss'] / running_results['batch_sizes'],
+                detailed_loss['pi_loss'] / running_results['batch_sizes'], 
+                detailed_loss['perception'] / running_results['batch_sizes'], 
+                detailed_loss['tv_loss'] / running_results['batch_sizes'],
+                detailed_loss['adversarial'] / running_results['batch_sizes']))
 
         netG.eval()
-        out_path = 'training_results/SRF_' + str(UPSCALE_FACTOR) + '/'
+        out_path = 'training_results/optuna/trial_' + str(trial_count) + '/'
         if not os.path.exists(out_path):
             os.makedirs(out_path)
 
@@ -133,7 +142,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple):
                               'psnr': 0, 'ssim': 0, 'batch_sizes': 0}
             val_images = []
             valid_l2_loss = 0.0
-            for val_lr, val_hr_restore, val_hr, _ in val_bar:
+            for val_lr, val_hr_restore, val_hr, lr_expanded in val_bar:
                 batch_size = val_lr.size(0)
                 valing_results['batch_sizes'] += batch_size
                 lr = val_lr
@@ -157,6 +166,21 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple):
                 valid_l2_loss += ((((sr[:, 0, :, :] - hr[:, 0, :, :]) ** 2)) / (torch.max(hr[:, 0, :, :]) ** 2)).data.mean() + \
                                  ((((sr[:, 1, :, :] - hr[:, 1, :, :]) ** 2)) / (torch.max(hr[:, 1, :, :]) ** 2)).data.mean() + \
                                  ((((sr[:, 2, :, :] - hr[:, 2, :, :]) ** 2)) / (torch.max(hr[:, 2, :, :]) ** 2)).data.mean()
+                val_images.extend(
+                    [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0),
+                     sr.data.cpu().squeeze(0)])
+            val_images = torch.stack(val_images)
+            image = torch.chunk(val_images, val_images.size(0) // 15)[0]
+            #val_save_bar = tqdm(val_images, desc='[saving training results]')
+            image = utils.make_grid(image, nrow=3, padding=5)
+            utils.save_image(image, out_path + 'epoch_%d.png' % (epoch), padding=5)
+            # index = 1
+            # for image in val_save_bar:
+            #     image = utils.make_grid(image, nrow=3, padding=5)
+            #     utils.save_image(
+            #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
+            #     index += 1            
+            
             eval_mse_error_list.append(valid_l2_loss)
 
     return min(eval_mse_error_list)

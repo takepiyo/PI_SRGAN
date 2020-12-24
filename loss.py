@@ -30,20 +30,19 @@ class GeneratorLoss(nn.Module):
         #     self.image_loss_weight[1] * self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :]) + \
         #     self.image_loss_weight[2] * self.mse_loss(
         #         out_images[:, 2, :, :], target_images[:, 2, :, :])
-        image_loss = self.mse_loss(out_images[:, 0, :, :], target_images[:, 0, :, :]) / (torch.max(target_images[:, 0, :, :]) ** 2) + \
-            self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :]) / (torch.max(target_images[:, 1, :, :]) ** 2) + \
-            self.mse_loss(out_images[:, 2, :, :], target_images[:, 2, :, :]
-                          ) / (torch.max(target_images[:, 2, :, :]) ** 2)
+        image_loss = (self.image_loss_weight[0] * self.mse_loss(out_images[:, 0, :, :], target_images[:, 0, :, :])) / (torch.max(target_images[:, 0, :, :]) ** 2) + \
+                     (self.image_loss_weight[1] * self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :])) / (torch.max(target_images[:, 1, :, :]) ** 2) + \
+                     (self.image_loss_weight[2] * self.mse_loss(out_images[:, 2, :, :], target_images[:, 2, :, :])) / (torch.max(target_images[:, 2, :, :]) ** 2)
 
         image_loss = image_loss / 3
         # TV Loss
         tv_loss = self.tv_loss(out_images)
         # PI loss added 20201220
         pi_loss = self.pi_loss(out_images)
-        return self.loss_weight[0] * image_loss + \
-            self.loss_weight[1] * adversarial_loss + \
-            self.loss_weight[2] * perception_loss + \
-            self.loss_weight[3] * tv_loss + \
+        return self.loss_weight[0] * image_loss,\
+            self.loss_weight[1] * adversarial_loss,\
+            self.loss_weight[2] * perception_loss,\
+            self.loss_weight[3] * tv_loss,\
             self.loss_weight[4] * pi_loss
 
 
