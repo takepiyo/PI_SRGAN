@@ -4,25 +4,25 @@ from torch import nn
 
 
 class Generator(nn.Module):
-    def __init__(self, scale_factor):
+    def __init__(self, scale_factor, num_channel):
         upsample_block_num = int(math.log(scale_factor, 2))
 
         super(Generator, self).__init__()
         self.block1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=9, padding=4),
+            nn.Conv2d(3, num_channel, kernel_size=9, padding=4),
             nn.PReLU()
         )
-        self.block2 = ResidualBlock(64)
-        self.block3 = ResidualBlock(64)
-        self.block4 = ResidualBlock(64)
-        self.block5 = ResidualBlock(64)
-        self.block6 = ResidualBlock(64)
+        self.block2 = ResidualBlock(num_channel)
+        self.block3 = ResidualBlock(num_channel)
+        self.block4 = ResidualBlock(num_channel)
+        self.block5 = ResidualBlock(num_channel)
+        self.block6 = ResidualBlock(num_channel)
         self.block7 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64)
+            nn.Conv2d(num_channel, num_channel, kernel_size=3, padding=1),
+            nn.BatchNorm2d(num_channel)
         )
-        block8 = [UpsampleBLock(64, 2) for _ in range(upsample_block_num)]
-        block8.append(nn.Conv2d(64, 3, kernel_size=9, padding=4))
+        block8 = [UpsampleBLock(num_channel, 2) for _ in range(upsample_block_num)]
+        block8.append(nn.Conv2d(num_channel, 3, kernel_size=9, padding=4))
         self.block8 = nn.Sequential(*block8)
 
     def forward(self, x):

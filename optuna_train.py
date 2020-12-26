@@ -17,11 +17,11 @@ from model import Generator, Discriminator
 
 import matplotlib.pyplot as plt
 
-def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple, trial_count):
+def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, dataset_tuple, trial_count):
 
     # CROP_SIZE = opt.crop_size
     UPSCALE_FACTOR = 4
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 100
     #OUT_DIR = "model/" + opt.output_dir
     #SAVE_PER_EPOCH = opt.save_per_epoch
     BATCH_SIZE = 80
@@ -33,7 +33,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple, 
     val_loader = DataLoader(dataset=val_set, num_workers=4,
                             batch_size=1, shuffle=False)
 
-    netG = Generator(UPSCALE_FACTOR)
+    netG = Generator(UPSCALE_FACTOR, num_channels)
     print('# generator parameters:', sum(param.numel()
                                          for param in netG.parameters()))
     netD = Discriminator()
@@ -141,7 +141,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple, 
             valing_results = {'mse': 0, 'ssims': 0,
                               'psnr': 0, 'ssim': 0, 'batch_sizes': 0}
             val_images = []
-            valid_l2_loss = 0.0
+            #valid_l2_loss = 0.0
             for val_lr, val_hr_restore, val_hr, lr_expanded in val_bar:
                 batch_size = val_lr.size(0)
                 valing_results['batch_sizes'] += batch_size
@@ -163,9 +163,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple, 
                 val_bar.set_description(
                     desc='[converting LR images to SR images] PSNR: %.4f dB SSIM: %.4f' % (
                         valing_results['psnr'], valing_results['ssim']))
-                valid_l2_loss += ((((sr[:, 0, :, :] - hr[:, 0, :, :]) ** 2)) / (torch.max(hr[:, 0, :, :]) ** 2)).data.mean() + \
-                                 ((((sr[:, 1, :, :] - hr[:, 1, :, :]) ** 2)) / (torch.max(hr[:, 1, :, :]) ** 2)).data.mean() + \
-                                 ((((sr[:, 2, :, :] - hr[:, 2, :, :]) ** 2)) / (torch.max(hr[:, 2, :, :]) ** 2)).data.mean()
+                #valid_l2_loss +=
                 val_images.extend(
                     [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0),
                      sr.data.cpu().squeeze(0)])
@@ -181,7 +179,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, dataset_tuple, 
             #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
             #     index += 1            
             
-            eval_mse_error_list.append(valid_l2_loss)
+            eval_mse_error_list.append(valing_results['mse'])
 
     return min(eval_mse_error_list)
             #     val_images.extend(

@@ -26,15 +26,15 @@ class GeneratorLoss(nn.Module):
         perception_loss = self.mse_loss(self.loss_network(
             out_images), self.loss_network(target_images))
         # Image Loss
-        # image_loss = self.image_loss_weight[0] * self.mse_loss(out_images[:, 0, :, :], target_images[:, 0, :, :]) + \
-        #     self.image_loss_weight[1] * self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :]) + \
-        #     self.image_loss_weight[2] * self.mse_loss(
-        #         out_images[:, 2, :, :], target_images[:, 2, :, :])
-        image_loss = (self.image_loss_weight[0] * self.mse_loss(out_images[:, 0, :, :], target_images[:, 0, :, :])) / (torch.max(target_images[:, 0, :, :]) ** 2) + \
-                     (self.image_loss_weight[1] * self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :])) / (torch.max(target_images[:, 1, :, :]) ** 2) + \
-                     (self.image_loss_weight[2] * self.mse_loss(out_images[:, 2, :, :], target_images[:, 2, :, :])) / (torch.max(target_images[:, 2, :, :]) ** 2)
+        image_loss = self.image_loss_weight[0] * self.mse_loss(out_images[:, 0, :, :], target_images[:, 0, :, :]) + \
+                     self.image_loss_weight[1] * self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :]) + \
+                     self.image_loss_weight[2] * self.mse_loss(out_images[:, 2, :, :], target_images[:, 2, :, :])
 
-        image_loss = image_loss / 3
+        # image_loss = (self.image_loss_weight[0] * self.mse_loss(out_images[:, 0, :, :], target_images[:, 0, :, :])) / (torch.max(target_images[:, 0, :, :]) ** 2) + \
+        #              (self.image_loss_weight[1] * self.mse_loss(out_images[:, 1, :, :], target_images[:, 1, :, :])) / (torch.max(target_images[:, 1, :, :]) ** 2) + \
+        #              (self.image_loss_weight[2] * self.mse_loss(out_images[:, 2, :, :], target_images[:, 2, :, :])) / (torch.max(target_images[:, 2, :, :]) ** 2)
+
+        #image_loss = image_loss / 3
         # TV Loss
         tv_loss = self.tv_loss(out_images)
         # PI loss added 20201220
