@@ -60,7 +60,7 @@ if __name__ == '__main__':
     val_loader = DataLoader(dataset=val_set, num_workers=4,
                             batch_size=1, shuffle=False)
 
-    netG = Generator(UPSCALE_FACTOR, 64)
+    netG = Generator(UPSCALE_FACTOR, 67)
     print('# generator parameters:', sum(param.numel()
                                          for param in netG.parameters()))
     netD = Discriminator()
@@ -75,6 +75,11 @@ if __name__ == '__main__':
     # loss_weight = (10.0, 0.001, 0.006, 2e-8, 0.001) 
     # image_loss_weight = (0.0925, 0.9, 0.0075)
     # lambda_params = (0.4, 0.001)
+
+    loss_weight = (10.0, 0.001, 0.006, 2e-8, 0.001) 
+    image_loss_weight = (0.700836, 0.563458, 0.147540)
+    lambda_params = (0.341726, 0.001)
+
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     generator_criterion = GeneratorLoss(
         loss_weight, image_loss_weight, train_set.get_params(), lambda_params, device)
