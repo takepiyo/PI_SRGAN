@@ -56,7 +56,8 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length,
     u_v_p = np.stack([
         data_dict['u'],
         data_dict['v'],
-        data_dict['p']], axis=3)[:data_length, :, :, :]
+        data_dict['p'],
+        np.roll(data_dict['p'], -1, axis=0)], axis=3)[:data_length - 1, :, :, :]
 
     np.random.shuffle(u_v_p)
     u_v_p_train, u_v_p_valid = np.split(
@@ -93,35 +94,21 @@ class DatasetFromPickle(Dataset):
         self.dx = torch.from_numpy(dx.astype(np.float32)).clone()
         self.dt = torch.from_numpy(dt.astype(np.float32)).clone()
 
-        # self.hr_transform = Compose([ToTensor()
-        #                              ])
-        # self.lr_transform = Compose([ToPILImage(),
-        #                              Resize(self.crop_size // upscale_factor,
-        #                                     interpolation=Image.BICUBIC),
-        #                              ToTensor()])
-
-        self.restore_transform = Compose([ToPILImage(),
-                                          Resize(
-                                              self.crop_size, interpolation=Image.NEAREST),
-                                          ToTensor()])
-
         self.low_pass_filter_conv = self._get_low_pass_filter()
 
         self.up_sample = nn.Upsample(size=self.crop_size, mode='nearest')
 
     def __getitem__(self, index):
-        # normalized = self._normalize_space(self.data[index, :, :, :])
-        normalized = self.data[index, :, :, :]
-        # hr_image = self.hr_transform(normalized)
+        p_next_step = ToTensor()(self.data[index, :, :, 3])
+        normalized = self.data[index, :, :, :3]
         hr_image = ToTensor()(normalized)
-        # lr_image_ = self.lr_transform(hr_image)
         with torch.no_grad():
             lr_image = self.low_pass_filter_conv(
                 hr_image.unsqueeze(0)).squeeze(0)
             lr_image_expanded = self.up_sample(
                 lr_image.unsqueeze(0)).squeeze(0)
-        restored_image = self.restore_transform(lr_image)
-        return lr_image, restored_image, hr_image, lr_image_expanded
+
+        return lr_image, hr_image, lr_image_expanded, p_next_step
 
     def __len__(self):
         return self.number

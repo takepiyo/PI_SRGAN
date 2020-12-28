@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class PhysicsInformedLoss(nn.Module):
@@ -14,27 +15,29 @@ class PhysicsInformedLoss(nn.Module):
         self.crop_size = crop_size
         self.N = crop_size - 2
         self.visc = visc.to(device)
-        self.continuity_ddx = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
-        self.continuity_ddy = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
+        self.div_ddx = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
+        self.div_ddy = nn.Conv2d(1, 1, 3, 1, 0, bias=False).to(device)
         self.average_x = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
         self.average_y = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
-        self.poission_up_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
-        self.poission_up_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
-        self.poission_down_ddx = nn.Conv2d(
+        self.poisson_up_ddx = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.poisson_up_ddy = nn.Conv2d(1, 1, 2, 1, 0, bias=False).to(device)
+        self.poisson_down_ddx = nn.Conv2d(
             1, 1, 2, 1, 0, bias=False).to(device)
-        self.poission_down_ddy = nn.Conv2d(
+        self.poisson_down_ddy = nn.Conv2d(
             1, 1, 2, 1, 0, bias=False).to(device)
+        self.laplacoan_filter = nn.Conv2d(
+            1, 1, 3, 1, 0, bias=False).to(device)
         self.device = device
         self.setting_weights()
 
     def setting_weights(self):
-        self.continuity_ddx.weight.data = torch.tensor([[[[0, 0, 0],
-                                                          [-1., 1., 0],
-                                                          [0, 0, 0]]]], device=self.device)
+        self.div_ddx.weight.data = torch.tensor([[[[0, 0, 0],
+                                                   [-1., 1., 0],
+                                                   [0, 0, 0]]]], device=self.device)
 
-        self.continuity_ddy.weight.data = torch.tensor([[[[0, -1., 0],
-                                                          [0, 1, 0],
-                                                          [0, 0, 0]]]], device=self.device)
+        self.div_ddy.weight.data = torch.tensor([[[[0, -1., 0],
+                                                   [0, 1, 0],
+                                                   [0, 0, 0]]]], device=self.device)
 
         self.average_x.weight.data = torch.tensor([[[[0.5, 0.5],
                                                      [0., 0.]]]], device=self.device)
@@ -42,19 +45,23 @@ class PhysicsInformedLoss(nn.Module):
         self.average_y.weight.data = torch.tensor([[[[0.5, 0.],
                                                      [0.5, 0.]]]], device=self.device)
 
-        self.poission_up_ddx.weight.data = torch.tensor([[[[-1., 1.],
-                                                           [0, 0]]]], device=self.device)
+        self.poisson_up_ddx.weight.data = torch.tensor([[[[-1., 1.],
+                                                          [0, 0]]]], device=self.device)
 
-        self.poission_up_ddy.weight.data = torch.tensor([[[[-1., 0],
-                                                           [1., 0]]]], device=self.device)
+        self.poisson_up_ddy.weight.data = torch.tensor([[[[-1., 0],
+                                                          [1., 0]]]], device=self.device)
 
-        self.poission_down_ddx.weight.data = torch.tensor([[[[0., 0],
-                                                             [-1., 1.]]]], device=self.device)
+        self.poisson_down_ddx.weight.data = torch.tensor([[[[0., 0],
+                                                            [-1., 1.]]]], device=self.device)
 
-        self.poission_down_ddy.weight.data = torch.tensor([[[[0, -1.],
-                                                             [0, 1.]]]], device=self.device)
+        self.poisson_down_ddy.weight.data = torch.tensor([[[[0, -1.],
+                                                            [0, 1.]]]], device=self.device)
 
-    def forward(self, gen_output):
+        self.laplacoan_filter.weight.data = torch.tensor([[[[0, -1., 0],
+                                                            [-1., 4., -1.],
+                                                            [0, -1., 0]]]],  device=self.device)
+
+    def forward(self, gen_output, p_next_step):
         # vel_grad = self.get_velocity_grad(gen_output)
         # vel_grad_HR = self.get_velocity_grad(HR_image)
         # strain_rate_2_HR = torch.mean(torch.mean(self.get_strain_rate_mags(
@@ -66,10 +73,77 @@ class PhysicsInformedLoss(nn.Module):
             torch.abs(continuity_res), dim=(2, 3))
 
         # poisson loss
-        dudt = self.get_poission_dudt(gen_output)
-        dvdt = self.get_poission_dvdt(gen_output)
-        poisson_loss = torch.mean(torch.abs(dudt), dim=(2, 3)) + \
-            torch.mean(torch.abs(dvdt), dim=(2, 3))
+        dudt = self.get_poisson_dudt(gen_output)
+        dvdt = self.get_poisson_dvdt(gen_output)
+
+        # stationary loss
+        # poisson_loss = torch.mean(torch.abs(dudt), dim=(2, 3)) + \
+        #     torch.mean(torch.abs(dvdt), dim=(2, 3))
+
+        # unstationary loss
+        p_prime = p_next_step - gen_output[:, 2, :, :].unsqueeze(1)
+        dudt_pad = F.pad(dudt, (1, 2, 1, 1), "constant", 0.0)
+        dvdt_pad = F.pad(dvdt, (1, 1, 1, 2), "constant", 0.0)
+
+        u_new_for = torch.zeros_like(p_next_step)
+        v_new_for = torch.zeros_like(p_next_step)
+
+        for i in range(1, self.N):
+            for j in range(1, self.N + 1):
+                u_new_for[:, :, j, i] = gen_output[:, 0, j, i].unsqueeze(1) + \
+                    dudt_pad[:, :, j, i] * self.dt
+        for i in range(1, self.N + 1):
+            for j in range(1, self.N):
+                v_new_for[:, :, j, i] = gen_output[:, 1, j, i].unsqueeze(1) + \
+                    dvdt_pad[:, :, j, i] * self.dt
+
+        b_for = torch.zeros_like(p_next_step)
+        poisson_loss_for = torch.zeros_like(p_next_step)
+
+        for i in range(1, self.N + 1):
+            for j in range(1, self.N + 1):
+                b_for[:, :, j, i] = (1. / self.dt) * ((u_new_for[:, :, j, i] - u_new_for[:, :, j, i - 1]) / self.dx +
+                                                      (v_new_for[:, :, j, i] - v_new_for[:, :, j - 1, i]) / self.dx)
+
+        for i in range(1, self.N + 1):
+            for j in range(1, self.N + 1):
+                a_p = 4./(self.dx ** 2)
+                a_e = 1./(self.dx ** 2)
+                a_s = 1./(self.dx ** 2)
+                a_w = 1./(self.dx ** 2)
+                a_n = 1./(self.dx ** 2)
+                if i == 1:
+                    a_p = a_p - a_w
+                    a_w = 0
+                if i == self.N:
+                    a_p = a_p - a_e
+                    a_e = 0
+                if j == 1:
+                    a_p = a_p - a_s
+                    a_s = 0
+                if j == self.N:
+                    a_p = a_p - a_n
+                    a_n = 0
+                poisson_loss_for[:, :, j, i] = a_p * p_prime[:, :, j, i] - \
+                    a_e * p_prime[:, :, j, i+1] - \
+                    a_s * p_prime[:, :, j-1, i] - \
+                    a_w * p_prime[:, :, j, i-1] - \
+                    a_n * p_prime[:, :, j+1, i] + b_for[:, :, j, i]
+
+        for_max = torch.max(poisson_loss_for[:, :, 1:-1, 1:-1])
+        for_max_no_bc = torch.max(poisson_loss_for)
+
+        u_new_conv = gen_output[:, 0, :, :].unsqueeze(1) + dudt_pad * self.dt
+        v_new_conv = gen_output[:, 1, :, :].unsqueeze(1) + dvdt_pad * self.dt
+
+        b_conv = (1. / self.dt) * (self.div_ddx(u_new_conv) /
+                                   self.dx + self.div_ddy(v_new_conv) / self.dx)
+
+        poisson_loss_conv = self.laplacoan_filter(
+            p_prime) / (self.dx ** 2) + b_conv
+
+        conv_max = torch.max(poisson_loss_conv[:, :, 1:-1, 1:-1])
+        conv_max_no_bc = torch.max(poisson_loss_conv)
 
         # boundary loss
         b_c_loss = self.get_b_c_loss(gen_output)
@@ -97,13 +171,13 @@ class PhysicsInformedLoss(nn.Module):
     #     return strain_rate_mag2
 
     def get_continuity_res(self, gen_output):
-        dudx = self.continuity_ddx(
+        dudx = self.div_ddx(
             gen_output[:, 0, :, :].unsqueeze(1)) / self.dx
-        dvdy = self.continuity_ddy(
+        dvdy = self.div_ddy(
             gen_output[:, 1, :, :].unsqueeze(1)) / self.dx
         return dudx + dvdy
 
-    def get_poission_dudt(self, gen_output):
+    def get_poisson_dudt(self, gen_output):
         u = gen_output[:, 0, :, :].unsqueeze(1)
         v = gen_output[:, 1, :, :].unsqueeze(1)
         p = gen_output[:, 2, :, :].unsqueeze(1)
@@ -112,23 +186,23 @@ class PhysicsInformedLoss(nn.Module):
         vn = self.average_x(v)
 
         flux_e = ue * \
-            self.average_x(u) - (self.visc / self.dx) * self.poission_up_ddx(u)
+            self.average_x(u) - (self.visc / self.dx) * self.poisson_up_ddx(u)
         flux_n = vn * \
-            self.average_y(u) - (self.visc / self.dx) * self.poission_up_ddy(u)
+            self.average_y(u) - (self.visc / self.dx) * self.poisson_up_ddy(u)
 
         flux_e = flux_e[:, :, :, :-1]
         flux_n = flux_n[:, :, :, :-1]
         p = p[:, :, :-1, 1:-1]
 
-        flux_e_diff = -self.poission_down_ddx(flux_e) / self.dx
-        flux_n_diff = -self.poission_down_ddy(flux_n) / self.dx
-        p_diff = -self.poission_down_ddx(p) / self.dx
+        flux_e_diff = -self.poisson_down_ddx(flux_e) / self.dx
+        flux_n_diff = -self.poisson_down_ddy(flux_n) / self.dx
+        p_diff = -self.poisson_down_ddx(p) / self.dx
 
         dudt = flux_e_diff + flux_n_diff + p_diff
 
         return dudt
 
-    def get_poission_dvdt(self, gen_output):
+    def get_poisson_dvdt(self, gen_output):
         u = gen_output[:, 0, :, :].unsqueeze(1)
         v = gen_output[:, 1, :, :].unsqueeze(1)
         p = gen_output[:, 2, :, :].unsqueeze(1)
@@ -137,17 +211,17 @@ class PhysicsInformedLoss(nn.Module):
         vn = self.average_y(v)
 
         flux_e = ue * \
-            self.average_x(v) - (self.visc / self.dx) * self.poission_up_ddx(v)
+            self.average_x(v) - (self.visc / self.dx) * self.poisson_up_ddx(v)
         flux_n = vn * \
-            self.average_y(v) - (self.visc / self.dx) * self.poission_up_ddy(v)
+            self.average_y(v) - (self.visc / self.dx) * self.poisson_up_ddy(v)
 
         flux_e = flux_e[:, :, :-1, :]
         flux_n = flux_n[:, :, :-1, :]
         p = p[:, :, 1:-1, :-1]
 
-        flux_e_diff = -self.poission_down_ddx(flux_e) / self.dx
-        flux_n_diff = -self.poission_down_ddy(flux_n) / self.dx
-        p_diff = -self.poission_down_ddy(p) / self.dx
+        flux_e_diff = -self.poisson_down_ddx(flux_e) / self.dx
+        flux_n_diff = -self.poisson_down_ddy(flux_n) / self.dx
+        p_diff = -self.poisson_down_ddy(p) / self.dx
 
         dvdt = flux_e_diff + flux_n_diff + p_diff
 
@@ -184,9 +258,9 @@ if __name__ == '__main__':
     from torch.utils.data import DataLoader
 
     train_dataset, valid_dataset = make_dataset_from_pickle(
-        '/home/takeshi/GAN/PI_SRGAN/data/1221_16000step/stationary.pickle', 4, 'PI_loss_test_dir', 10000)
+        'data/1221_16000step/first_half.pickle', 4, 'PI_loss_test_dir', 2000)
     dataloader = DataLoader(train_dataset, batch_size=1,
-                            shuffle=False).__iter__()
+                            shuffle=True).__iter__()
     INDEX = 5
     if INDEX != 0:
         for i in range(INDEX - 1):
@@ -196,7 +270,7 @@ if __name__ == '__main__':
 
     PI_loss = PhysicsInformedLoss(*lambda_params, *train_dataset.get_params())
 
-    lr, hr_restore, hr, lr_expanded = dataloader.__next__()
+    lr, hr, lr_expanded, p_next_step = dataloader.__next__()
 
-    loss = PI_loss(hr)
+    loss = PI_loss(hr, p_next_step)
     print(loss)
