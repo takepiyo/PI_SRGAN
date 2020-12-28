@@ -17,17 +17,18 @@ from model import Generator, Discriminator
 
 import matplotlib.pyplot as plt
 
+
 def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, dataset_tuple, trial_count):
 
     # CROP_SIZE = opt.crop_size
     UPSCALE_FACTOR = 4
     NUM_EPOCHS = 100
-    #OUT_DIR = "model/" + opt.output_dir
-    #SAVE_PER_EPOCH = opt.save_per_epoch
+    # OUT_DIR = "model/" + opt.output_dir
+    # SAVE_PER_EPOCH = opt.save_per_epoch
     BATCH_SIZE = 80
 
     train_set, val_set = dataset_tuple
-    
+
     train_loader = DataLoader(
         dataset=train_set, num_workers=4, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(dataset=val_set, num_workers=4,
@@ -61,7 +62,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
         train_bar = tqdm(train_loader)
         running_results = {'batch_sizes': 0, 'd_loss': 0,
                            'g_loss': 0, 'd_score': 0, 'g_score': 0}
-        detailed_loss = {'adversarial': 0, 'perception': 0, 
+        detailed_loss = {'adversarial': 0, 'perception': 0,
                          'image_loss': 0, 'tv_loss': 0, 'pi_loss': 0}
         netG.train()
         netD.train()
@@ -126,8 +127,8 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
                 running_results['batch_sizes'],
                 running_results['g_loss'] / running_results['batch_sizes'],
                 detailed_loss['image_loss'] / running_results['batch_sizes'],
-                detailed_loss['pi_loss'] / running_results['batch_sizes'], 
-                detailed_loss['perception'] / running_results['batch_sizes'], 
+                detailed_loss['pi_loss'] / running_results['batch_sizes'],
+                detailed_loss['perception'] / running_results['batch_sizes'],
                 detailed_loss['tv_loss'] / running_results['batch_sizes'],
                 detailed_loss['adversarial'] / running_results['batch_sizes']))
 
@@ -141,7 +142,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
             valing_results = {'mse': 0, 'ssims': 0,
                               'psnr': 0, 'ssim': 0, 'batch_sizes': 0}
             val_images = []
-            #valid_l2_loss = 0.0
+            # valid_l2_loss = 0.0
             for val_lr, val_hr_restore, val_hr, lr_expanded in val_bar:
                 batch_size = val_lr.size(0)
                 valing_results['batch_sizes'] += batch_size
@@ -163,31 +164,16 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
                 val_bar.set_description(
                     desc='[converting LR images to SR images] PSNR: %.4f dB SSIM: %.4f' % (
                         valing_results['psnr'], valing_results['ssim']))
-                #valid_l2_loss +=
+                # valid_l2_loss +=
                 val_images.extend(
                     [lr_expanded.squeeze(0), hr.data.cpu().squeeze(0),
                      sr.data.cpu().squeeze(0)])
             val_images = torch.stack(val_images)
             image = torch.chunk(val_images, val_images.size(0) // 15)[0]
-            #val_save_bar = tqdm(val_images, desc='[saving training results]')
-            image = utils.make_grid(image, nrow=3, padding=5)
-            utils.save_image(image, out_path + 'epoch_%d.png' % (epoch), padding=5)
-            # index = 1
-            # for image in val_save_bar:
-            #     image = utils.make_grid(image, nrow=3, padding=5)
-            #     utils.save_image(
-            #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
-            #     index += 1            
-            
-            eval_mse_error_list.append(valing_results['mse'])
-
-    return min(eval_mse_error_list)
-            #     val_images.extend(
-            #         [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
-            #          display_transform()(sr.data.cpu().squeeze(0))])
-            # val_images = torch.stack(val_images)
-            # val_images = torch.chunk(val_images, val_images.size(0) // 15)
             # val_save_bar = tqdm(val_images, desc='[saving training results]')
+            image = utils.make_grid(image, nrow=3, padding=5)
+            utils.save_image(image, out_path + 'epoch_%d.png' %
+                             (epoch), padding=5)
             # index = 1
             # for image in val_save_bar:
             #     image = utils.make_grid(image, nrow=3, padding=5)
@@ -195,3 +181,23 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
             #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
             #     index += 1
 
+            valid_mse_loss = valing_results['mse']
+            if len(eval_mse_error_list) != 0:
+                if valid_mse_loss < min(eval_mse_error_list):
+                    torch.save(netG.state_dict(), os.path.join(
+                        out_path, 'netG_best.pth'))
+
+            eval_mse_error_list.append(valid_mse_loss)
+    return min(eval_mse_error_list)
+    #     val_images.extend(
+    #         [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
+    #          display_transform()(sr.data.cpu().squeeze(0))])
+    # val_images = torch.stack(val_images)
+    # val_images = torch.chunk(val_images, val_images.size(0) // 15)
+    # val_save_bar = tqdm(val_images, desc='[saving training results]')
+    # index = 1
+    # for image in val_save_bar:
+    #     image = utils.make_grid(image, nrow=3, padding=5)
+    #     utils.save_image(
+    #         image, out_path + 'epoch_%d_index_%d.png' % (epoch, index), padding=5)
+    #     index += 1
