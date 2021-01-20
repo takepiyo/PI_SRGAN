@@ -64,7 +64,7 @@ def make_dataset_from_pickle(dataset_file, upscale_factor, out_dir, data_length,
     dx = data_dict['dx']
     dt = data_dict['dt']
     u_0 = data_dict['u0']
-    visc = data_dict['visc']
+    visc = data_dict['u0'] / data_dict['Re']
     del data_dict
     gc.collect()
 

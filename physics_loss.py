@@ -4,10 +4,11 @@ import torch.nn as nn
 
 class PhysicsInformedLoss(nn.Module):
 
-    def __init__(self, labmda_con, lambda_b_c, dx, dt, u_0, visc, crop_size, device='cpu'):
+    def __init__(self, labmda_con, labmda_poi, lambda_b_c, dx, dt, u_0, visc, crop_size, device='cpu'):
         super(PhysicsInformedLoss, self).__init__()
-        self.labmda_con = labmda_con
-        self.lambda_b_c = lambda_b_c
+        self.labmda_con = labmda_con / (labmda_con + labmda_poi + lambda_b_c)
+        self.lambda_b_c = lambda_b_c / (labmda_con + labmda_poi + lambda_b_c)
+        self.labmda_poi = labmda_poi / (labmda_con + labmda_poi + lambda_b_c)
         self.dx = dx.to(device)
         self.dt = dt.to(device)
         self.u_0 = u_0.to(device)
@@ -77,7 +78,7 @@ class PhysicsInformedLoss(nn.Module):
         # pi_loss
         pi_loss = self.labmda_con * continuity_loss + \
             self.lambda_b_c * b_c_loss + \
-            (1 - self.labmda_con - self.lambda_b_c) * poisson_loss
+            self.labmda_poi * poisson_loss
         pi_loss = torch.mean(pi_loss.view(-1))
         return pi_loss
 

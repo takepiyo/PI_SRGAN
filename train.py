@@ -76,9 +76,16 @@ if __name__ == '__main__':
     # image_loss_weight = (0.0925, 0.9, 0.0075)
     # lambda_params = (0.4, 0.001)
 
-    loss_weight = (10.0, 0.001, 0.006, 2e-8, 0.001) 
-    image_loss_weight = (0.700836, 0.563458, 0.147540)
-    lambda_params = (0.341726, 0.001)
+
+    # no_pi_loss
+    # loss_weight = (10.0, 0.001, 0.006, 2e-8, 0.0) 
+    # image_loss_weight = (0.49640113, 0.3990964, 0.10450237)
+    # lambda_params = (0.341726, 0.001)
+    # pi_loss
+    # loss_weight = (10.0, 0.001, 0.006, 2e-8, 0.001) 
+    loss_weight = (0.0, 1.0, 0.06, 2e-5, 1.0) 
+    image_loss_weight = (0.49640113, 0.3990964, 0.10450237)
+    lambda_params = (5.0, 5.0, 0.001)
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     generator_criterion = GeneratorLoss(

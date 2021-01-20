@@ -2,6 +2,7 @@ import argparse
 import os
 from math import log10
 
+import numpy as np
 import pandas as pd
 import torch.optim as optim
 import torch.utils.data
@@ -10,6 +11,8 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+import random
+
 import pytorch_ssim
 from data_utils import TrainDatasetFromFolder, ValDatasetFromFolder, display_transform, make_dataset_from_pickle
 from loss import GeneratorLoss
@@ -17,15 +20,21 @@ from model import Generator, Discriminator
 
 import matplotlib.pyplot as plt
 
+def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, dataset_tuple, trial_count, seed):
 
-def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, dataset_tuple, trial_count):
+    # np.random.seed(seed)
+    # random.seed(seed)
+    # torch.manual_seed(seed)
+    # torch.cuda.manual_seed(seed)
 
     # CROP_SIZE = opt.crop_size
     UPSCALE_FACTOR = 4
-    NUM_EPOCHS = 100
+    NUM_EPOCHS = 150
     # OUT_DIR = "model/" + opt.output_dir
     # SAVE_PER_EPOCH = opt.save_per_epoch
     BATCH_SIZE = 80
+
+    print(dataset_tuple)
 
     train_set, val_set = dataset_tuple
 
@@ -59,6 +68,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
                'g_score': [], 'psnr': [], 'ssim': []}
     eval_mse_error_list = []
     for epoch in range(1, NUM_EPOCHS + 1):
+        # print("achimostu")
         train_bar = tqdm(train_loader)
         running_results = {'batch_sizes': 0, 'd_loss': 0,
                            'g_loss': 0, 'd_score': 0, 'g_score': 0}
@@ -68,7 +78,10 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
         netD.train()
         torch.autograd.set_detect_anomaly(True)
 
+        # print("chinko")
+
         for data, _, target, _ in train_bar:
+            # print("hagehage")
             g_update_first = True
             batch_size = data.size(0)
             running_results['batch_sizes'] += batch_size
@@ -133,7 +146,7 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
                 detailed_loss['adversarial'] / running_results['batch_sizes']))
 
         netG.eval()
-        out_path = 'training_results/optuna/trial_' + str(trial_count) + '/'
+        out_path = 'training_results/optuna/trial_' + str(trial_count)
         if not os.path.exists(out_path):
             os.makedirs(out_path)
 
@@ -172,8 +185,8 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
             image = torch.chunk(val_images, val_images.size(0) // 15)[0]
             # val_save_bar = tqdm(val_images, desc='[saving training results]')
             image = utils.make_grid(image, nrow=3, padding=5)
-            utils.save_image(image, out_path + 'epoch_%d.png' %
-                             (epoch), padding=5)
+            utils.save_image(image, os.path.join(out_path, 'epoch_%d.png' %
+                             (epoch)), padding=5)
             # index = 1
             # for image in val_save_bar:
             #     image = utils.make_grid(image, nrow=3, padding=5)
@@ -188,6 +201,10 @@ def main(weight_tuple, image_loss_weight_tuple, pi_weight_tuple, num_channels, d
                         out_path, 'netG_best.pth'))
 
             eval_mse_error_list.append(valid_mse_loss)
+        if epoch == 100:
+            if min(eval_mse_error_list) > 1.05:
+                break
+    os.rename(out_path , 'training_results/optuna/trial_' + str(min(eval_mse_error_list)))
     return min(eval_mse_error_list)
     #     val_images.extend(
     #         [display_transform()(val_hr_restore.squeeze(0)), display_transform()(hr.data.cpu().squeeze(0)),
